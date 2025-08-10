@@ -7,10 +7,13 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.0",
+    "@types/multer": "^2.0.0",
     "cheerio": "^1.0.0",
     "date-fns": "^4.1.0",
     "googleapis": "^150.0.1",
+    "multer": "^2.0.2",
     "next": "latest",
+    "openai": "^5.12.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
