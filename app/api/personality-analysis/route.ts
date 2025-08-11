@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { writeFile, readFile } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
 
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
@@ -28,29 +27,28 @@ async function loadPrompt(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    // 요청에서 이미지 파일 추출
-    const formData = await request.formData();
-    const imageFile = formData.get('image') as File;
+    // 요청에서 이미지 URL 추출
+    const body = await request.json();
+    const imageUrl = body.imageUrl;
+
+    console.log('이미지 url:', imageUrl);
     
-    if (!imageFile) {
+    if (!imageUrl) {
       return NextResponse.json(
-        { error: '이미지 파일이 필요합니다.' },
+        { error: '이미지 URL이 필요합니다.' },
         { status: 400 }
       );
     }
 
-    // 이미지 파일을 임시 디렉토리에 저장
-    const bytes = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    
-    // 임시 디렉토리 생성
-    const tempDir = join(process.cwd(), 'temp');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
+    // URL 유효성 검사
+    try {
+      new URL(imageUrl);
+    } catch (error) {
+      return NextResponse.json(
+        { error: '유효하지 않은 이미지 URL입니다.' },
+        { status: 400 }
+      );
     }
-    
-    const tempFilePath = join(tempDir, `analysis_${Date.now()}.jpg`);
-    await writeFile(tempFilePath, new Uint8Array(bytes));
 
     // 프롬프트 로드
     const prompt = await loadPrompt();
@@ -69,7 +67,7 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${buffer.toString('base64')}`
+                url: imageUrl
               }
             }
           ]
@@ -78,13 +76,6 @@ export async function POST(request: NextRequest) {
       max_tokens: 2000,
       temperature: 0.7,
     });
-
-    // 임시 파일 삭제
-    try {
-      await writeFile(tempFilePath, ''); // 파일 내용 비우기
-    } catch (error) {
-      console.log('임시 파일 정리 중 오류:', error);
-    }
 
     const analysisResult = response.choices[0]?.message?.content;
     
@@ -172,8 +163,11 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     message: '성격 분석 API',
-    description: '이미지를 업로드하여 AI 기반 성격 분석을 받을 수 있습니다.',
-    usage: 'POST /api/personality-analysis with image file in form-data',
+    description: '이미지 URL을 제공하여 AI 기반 성격 분석을 받을 수 있습니다.',
+    usage: 'POST /api/personality-analysis with JSON body containing imageUrl',
+    requestFormat: {
+      imageUrl: 'string (공개 접근 가능한 이미지 URL)'
+    },
     features: [
       '성격 특성과 기질 분석',
       '강점과 약점 파악',
