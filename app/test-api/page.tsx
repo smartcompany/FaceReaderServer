@@ -3,28 +3,25 @@
 import { useState } from 'react';
 
 export default function TestAPIPage() {
-  const [imageUrl, setImageUrl] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  const handleUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const url = event.target.value;
-    setImageUrl(url);
-    setError('');
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+      setError('');
+    } else {
+      setError('이미지 파일을 선택해주세요.');
+      setSelectedFile(null);
+    }
   };
 
   const handleSubmit = async () => {
-    if (!imageUrl.trim()) {
-      setError('이미지 URL을 입력해주세요.');
-      return;
-    }
-
-    // URL 유효성 검사
-    try {
-      new URL(imageUrl);
-    } catch (error) {
-      setError('유효하지 않은 URL입니다.');
+    if (!selectedFile) {
+      setError('이미지를 선택해주세요.');
       return;
     }
 
@@ -33,14 +30,12 @@ export default function TestAPIPage() {
     setAnalysis(null);
 
     try {
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+
       const response = await fetch('/api/personality-analysis', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageUrl: imageUrl
-        }),
+        body: formData,
       });
 
       const data = await response.json();
@@ -65,36 +60,31 @@ export default function TestAPIPage() {
         </h1>
         
         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">이미지 URL 입력</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">이미지 업로드</h2>
           
           <div className="mb-4">
             <input
-              type="url"
-              placeholder="https://example.com/image.jpg"
-              value={imageUrl}
-              onChange={handleUrlChange}
-              className="block w-full px-4 py-3 text-white bg-white/20 rounded-lg border border-white/30 focus:outline-none focus:border-purple-400 placeholder-white/60"
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="block w-full text-sm text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"
             />
           </div>
 
-          {imageUrl && (
+          {selectedFile && (
             <div className="mb-4">
-              <p className="text-white mb-2">입력된 URL: {imageUrl}</p>
+              <p className="text-white mb-2">선택된 파일: {selectedFile.name}</p>
               <img
-                src={imageUrl}
+                src={URL.createObjectURL(selectedFile)}
                 alt="Preview"
                 className="max-w-xs rounded-lg"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  setError('이미지를 불러올 수 없습니다. URL을 확인해주세요.');
-                }}
               />
             </div>
           )}
 
           <button
             onClick={handleSubmit}
-            disabled={!imageUrl.trim() || loading}
+            disabled={!selectedFile || loading}
             className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-3 px-6 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all duration-200"
           >
             {loading ? '분석 중...' : '성격 분석 시작하기'}

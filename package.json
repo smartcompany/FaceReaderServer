@@ -6,6 +6,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/storage-js": "^2.10.4",
     "@supabase/supabase-js": "^2.50.0",
     "@types/multer": "^2.0.0",
     "cheerio": "^1.0.0",

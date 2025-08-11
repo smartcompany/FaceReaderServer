@@ -2,11 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { createClient } from '@supabase/supabase-js';
+import { writeFile } from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
+ 
+const STORAGE_BUCKET = "rate-history";
 
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Supabase 클라이언트 초기화
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!
+);
 
 // 프롬프트 파일 읽기 함수
 async function loadPrompt(): Promise<string> {
@@ -27,28 +38,56 @@ async function loadPrompt(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    // 요청에서 이미지 URL 추출
-    const body = await request.json();
-    const imageUrl = body.imageUrl;
-
-    console.log('이미지 url:', imageUrl);
+    // 요청에서 이미지 파일 추출
+    const formData = await request.formData();
+    const imageFile = formData.get('image') as File;
     
-    if (!imageUrl) {
+    if (!imageFile) {
       return NextResponse.json(
-        { error: '이미지 URL이 필요합니다.' },
+        { error: '이미지 파일이 필요합니다.' },
         { status: 400 }
       );
     }
 
-    // URL 유효성 검사
-    try {
-      new URL(imageUrl);
-    } catch (error) {
+    console.log('업로드된 파일:', imageFile.name, '크기:', imageFile.size);
+
+    // 이미지 파일을 임시 디렉토리에 저장
+    const bytes = await imageFile.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    
+    // 임시 디렉토리 생성
+    const tempDir = join(process.cwd(), 'temp');
+    if (!existsSync(tempDir)) {
+      mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const tempFilePath = join(tempDir, `analysis_${Date.now()}.jpg`);
+    await writeFile(tempFilePath, new Uint8Array(bytes));
+
+    // Supabase Storage에 업로드
+    const fileName = `personality-analysis/${Date.now()}-${imageFile.name}`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('face-reader')
+      .upload(fileName, buffer, {
+        contentType: imageFile.type,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Supabase 업로드 오류:', uploadError);
       return NextResponse.json(
-        { error: '유효하지 않은 이미지 URL입니다.' },
-        { status: 400 }
+        { error: '이미지 업로드 중 오류가 발생했습니다.' },
+        { status: 500 }
       );
     }
+
+    // 공개 URL 생성
+    const { data: { publicUrl } } = supabase.storage
+      .from('face-reader')
+      .getPublicUrl(fileName);
+
+    console.log('Supabase 업로드 완료:', publicUrl);
 
     // 프롬프트 로드
     const prompt = await loadPrompt();
@@ -67,7 +106,7 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: imageUrl
+                url: publicUrl
               }
             }
           ]
@@ -140,6 +179,23 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // 임시 파일 삭제
+    try {
+      await writeFile(tempFilePath, ''); // 파일 내용 비우기
+    } catch (error) {
+      console.log('임시 파일 정리 중 오류:', error);
+    }
+
+    // Supabase Storage에서 파일 삭제 (선택사항)
+    // try {
+    //   await supabase.storage
+    //     .from('face-reader')
+    //     .remove([fileName]);
+    //   console.log('Supabase 파일 삭제 완료');
+    // } catch (error) {
+    //   console.log('Supabase 파일 삭제 중 오류:', error);
+    // }
+
     return NextResponse.json({
       success: true,
       analysis: parsedAnalysis,
@@ -163,12 +219,13 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     message: '성격 분석 API',
-    description: '이미지 URL을 제공하여 AI 기반 성격 분석을 받을 수 있습니다.',
-    usage: 'POST /api/personality-analysis with JSON body containing imageUrl',
+    description: '이미지 파일을 업로드하여 AI 기반 성격 분석을 받을 수 있습니다.',
+    usage: 'POST /api/personality-analysis with multipart/form-data containing image file',
     requestFormat: {
-      imageUrl: 'string (공개 접근 가능한 이미지 URL)'
+      image: 'File (이미지 파일)'
     },
     features: [
+      '이미지 자동 업로드 (Supabase Storage)',
       '성격 특성과 기질 분석',
       '강점과 약점 파악',
       '대인관계 스타일 분석',
