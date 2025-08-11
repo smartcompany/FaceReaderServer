@@ -91,9 +91,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // JSON 응답 파싱 및 검증
+    let parsedAnalysis;
+    try {
+      // JSON 코드 블록이 있는 경우 추출
+      const jsonMatch = analysisResult.match(/```json\s*([\s\S]*?)\s*```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : analysisResult;
+      
+      parsedAnalysis = JSON.parse(jsonString);
+      
+      // 필수 필드 검증
+      const requiredFields = [
+        'personality_traits', 'strengths_weaknesses', 'communication_style',
+        'growth_direction', 'charm_points', 'overall_advice'
+      ];
+      
+      const missingFields = requiredFields.filter(field => 
+        !parsedAnalysis[field] || !parsedAnalysis[field].title || !parsedAnalysis[field].content
+      );
+      
+      if (missingFields.length > 0) {
+        console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
+        // 기본 구조로 재구성
+        parsedAnalysis = {
+          personality_traits: { title: '🎭 성격 특성과 기질', content: '분석 결과를 확인할 수 없습니다.' },
+          strengths_weaknesses: { title: '💪 강점과 약점', content: '분석 결과를 확인할 수 없습니다.' },
+          communication_style: { title: '🤝 대인관계 스타일', content: '분석 결과를 확인할 수 없습니다.' },
+          growth_direction: { title: '🌱 발전 방향', content: '분석 결과를 확인할 수 없습니다.' },
+          charm_points: { title: '✨ 매력 포인트', content: '분석 결과를 확인할 수 없습니다.' },
+          overall_advice: { title: '💡 종합 조언', content: '분석 결과를 확인할 수 없습니다.' }
+        };
+      }
+      
+    } catch (parseError) {
+      console.error('JSON 파싱 오류:', parseError);
+      console.log('원본 응답:', analysisResult);
+      
+      // 파싱 실패 시 기본 구조 반환
+      parsedAnalysis = {
+        personality_traits: { title: '🎭 성격 특성과 기질', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+        strengths_weaknesses: { title: '💪 강점과 약점', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+        communication_style: { title: '🤝 대인관계 스타일', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+        growth_direction: { title: '🌱 발전 방향', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+        charm_points: { title: '✨ 매력 포인트', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+        overall_advice: { title: '💡 종합 조언', content: 'AI 분석 결과를 파싱할 수 없습니다.' }
+      };
+    }
+
     return NextResponse.json({
       success: true,
-      analysis: analysisResult,
+      analysis: parsedAnalysis,
       timestamp: new Date().toISOString()
     });
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 export default function TestAPIPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [analysis, setAnalysis] = useState<string>('');
+  const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
@@ -27,7 +27,7 @@ export default function TestAPIPage() {
 
     setLoading(true);
     setError('');
-    setAnalysis('');
+    setAnalysis(null);
 
     try {
       const formData = new FormData();
@@ -100,10 +100,17 @@ export default function TestAPIPage() {
         {analysis && (
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4">분석 결과</h2>
-            <div className="bg-white/5 rounded-lg p-4">
-              <pre className="text-white whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                {analysis}
-              </pre>
+            <div className="space-y-4">
+              {Object.entries(analysis).map(([key, section]: [string, any]) => (
+                <div key={key} className="bg-white/5 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    {section.title}
+                  </h3>
+                  <p className="text-white/90 leading-relaxed">
+                    {section.content}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         )}
