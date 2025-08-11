@@ -13,7 +13,12 @@ const openai = new OpenAI({
 async function loadPrompt(): Promise<string> {
   try {
     const promptPath = join(process.cwd(), 'prompts', 'personality-analysis.txt');
+    console.log('프롬프트 파일 경로:', promptPath);
+    
     const promptContent = await readFile(promptPath, 'utf-8');
+    console.log('로드된 프롬프트 길이:', promptContent.length);
+    console.log('프롬프트 내용 (처음 200자):', promptContent.substring(0, 200));
+    
     return promptContent;
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
@@ -94,11 +99,18 @@ export async function POST(request: NextRequest) {
     // JSON 응답 파싱 및 검증
     let parsedAnalysis;
     try {
+      console.log('AI 원본 응답:', analysisResult);
+      
       // JSON 코드 블록이 있는 경우 추출
       const jsonMatch = analysisResult.match(/```json\s*([\s\S]*?)\s*```/);
       const jsonString = jsonMatch ? jsonMatch[1] : analysisResult;
       
-      parsedAnalysis = JSON.parse(jsonString);
+      // JSON 문자열 정리 (불필요한 공백, 줄바꿈 제거)
+      const cleanJsonString = jsonString.trim().replace(/\n/g, ' ').replace(/\r/g, '');
+      
+      console.log('정리된 JSON 문자열:', cleanJsonString);
+      
+      parsedAnalysis = JSON.parse(cleanJsonString);
       
       // 필수 필드 검증
       const requiredFields = [
@@ -118,8 +130,8 @@ export async function POST(request: NextRequest) {
           strengths_weaknesses: { title: '💪 강점과 약점', content: '분석 결과를 확인할 수 없습니다.' },
           communication_style: { title: '🤝 대인관계 스타일', content: '분석 결과를 확인할 수 없습니다.' },
           growth_direction: { title: '🌱 발전 방향', content: '분석 결과를 확인할 수 없습니다.' },
-          charm_points: { title: '✨ 매력 포인트', content: '분석 결과를 확인할 수 없습니다.' },
-          overall_advice: { title: '💡 종합 조언', content: '분석 결과를 확인할 수 없습니다.' }
+          charm_points: { title: '✨ 매력 포인트', content: 'AI 분석 결과를 파싱할 수 없습니다.' },
+          overall_advice: { title: '💡 종합 조언', content: 'AI 분석 결과를 파싱할 수 없습니다.' }
         };
       }
       

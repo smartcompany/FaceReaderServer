@@ -49,4 +49,12 @@
 ```
 
 사용자의 얼굴 사진을 분석하여 위의 JSON 형식에 맞춰 상세하고 유용한 성격 분석 결과를 제공해주세요.
-응답은 반드시 유효한 JSON 형식이어야 하며, 각 항목의 content는 한국어로 작성해주세요.
+
+**중요: 응답은 반드시 유효한 JSON 형식이어야 합니다.**
+- 다른 텍스트나 설명은 절대 포함하지 마세요
+- 오직 JSON 객체만 반환하세요
+- JSON 코드 블록(```json)을 사용하지 마세요
+- 직접 JSON 객체를 반환하세요
+
+예시 응답:
+{"personality_traits":{"title":"🎭 성격 특성과 기질","content":"분석 내용..."},"strengths_weaknesses":{"title":"💪 강점과 약점","content":"분석 내용..."},"communication_style":{"title":"🤝 대인관계 스타일","content":"분석 내용..."},"growth_direction":{"title":"🌱 발전 방향","content":"분석 내용..."},"charm_points":{"title":"✨ 매력 포인트","content":"분석 내용..."},"overall_advice":{"title":"💡 종합 조언","content":"분석 내용..."}}
