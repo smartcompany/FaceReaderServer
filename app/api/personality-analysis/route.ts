@@ -3,8 +3,6 @@ import OpenAI from 'openai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
-import { writeFile } from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
  
 const STORAGE_BUCKET = "rate-history";
 
@@ -51,18 +49,9 @@ export async function POST(request: NextRequest) {
 
     console.log('업로드된 파일:', imageFile.name, '크기:', imageFile.size);
 
-    // 이미지 파일을 임시 디렉토리에 저장
+    // 이미지 파일을 버퍼로 변환
     const bytes = await imageFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
-    // 임시 디렉토리 생성
-    const tempDir = join(process.cwd(), 'temp');
-    if (!existsSync(tempDir)) {
-      mkdirSync(tempDir, { recursive: true });
-    }
-    
-    const tempFilePath = join(tempDir, `analysis_${Date.now()}.jpg`);
-    await writeFile(tempFilePath, new Uint8Array(bytes));
 
     // Supabase Storage에 업로드
     const fileName = `personality-analysis/${Date.now()}-${imageFile.name}`;
@@ -179,12 +168,12 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // 임시 파일 삭제
-    try {
-      await writeFile(tempFilePath, ''); // 파일 내용 비우기
-    } catch (error) {
-      console.log('임시 파일 정리 중 오류:', error);
-    }
+    // 임시 파일 삭제 (Vercel 환경에서는 불필요)
+    // try {
+    //   await writeFile(tempFilePath, ''); // 파일 내용 비우기
+    // } catch (error) {
+    //   console.log('임시 파일 정리 중 오류:', error);
+    // }
 
     // Supabase Storage에서 파일 삭제 (선택사항)
     // try {
