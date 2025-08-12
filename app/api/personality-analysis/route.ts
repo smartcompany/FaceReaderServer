@@ -24,7 +24,7 @@ async function loadPrompt(): Promise<string> {
     console.log('프롬프트 파일 경로:', promptPath);
     
     const promptContent = await readFile(promptPath, 'utf-8');
-    console.log('프롬프트 내용 (처음 200자):', promptContent);
+    console.log('프롬프트 내용:', promptContent);
     
     return promptContent;
   } catch (error) {
@@ -156,34 +156,13 @@ export async function POST(request: NextRequest) {
     } catch (parseError) {
       console.error('JSON 파싱 오류:', parseError);
       console.log('원본 응답:', analysisResult);
-      
-      // 파싱 실패 시 기본 구조 반환 (단순 문자열 형태)
-      parsedAnalysis = {
-        personality_traits: 'AI 분석 결과를 파싱할 수 없습니다.',
-        strengths_weaknesses: 'AI 분석 결과를 파싱할 수 없습니다.',
-        communication_style: 'AI 분석 결과를 파싱할 수 없습니다.',
-        growth_direction: 'AI 분석 결과를 파싱할 수 없습니다.',
-        charm_points: 'AI 분석 결과를 파싱할 수 없습니다.',
-        overall_advice: 'AI 분석 결과를 파싱할 수 없습니다.'
-      };
+
+      return NextResponse.json(
+      { 
+          error: '성격 분석 중 오류가 발생했습니다.',
+          details: analysisResult
+      });
     }
-
-    // 임시 파일 삭제 (Vercel 환경에서는 불필요)
-    // try {
-    //   await writeFile(tempFilePath, ''); // 파일 내용 비우기
-    // } catch (error) {
-    //   console.log('임시 파일 정리 중 오류:', error);
-    // }
-
-    // Supabase Storage에서 파일 삭제 (선택사항)
-    // try {
-    //   await supabase.storage
-    //     .from('face-reader')
-    //     .remove([fileName]);
-    //   console.log('Supabase 파일 삭제 완료');
-    // } catch (error) {
-    //   console.log('Supabase 파일 삭제 중 오류:', error);
-    // }
 
     return NextResponse.json({
       success: true,
