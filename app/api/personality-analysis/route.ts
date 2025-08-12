@@ -158,10 +158,12 @@ export async function POST(request: NextRequest) {
       console.log('원본 응답:', analysisResult);
 
       return NextResponse.json(
-      { 
-          error: '성격 분석 중 오류가 발생했습니다.',
-          details: analysisResult
-      });
+        { 
+            error: '성격 분석 중 오류가 발생했습니다.',
+            details: analysisResult
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
