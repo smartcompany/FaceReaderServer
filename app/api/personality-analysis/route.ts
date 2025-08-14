@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
           ]
         }
       ],
+      response_format: {
+        type: "json_object"
+      },
       max_tokens: 2000,
       temperature: 0.7,
     });

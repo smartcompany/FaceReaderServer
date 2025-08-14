@@ -1,0 +1,261 @@
+import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { createClient } from '@supabase/supabase-js';
+
+const STORAGE_BUCKET = "face-reader";
+
+// OpenAI 클라이언트 초기화
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Supabase 클라이언트 초기화
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!
+);
+
+// 프롬프트 파일 읽기 함수
+async function loadPrompt(): Promise<string> {
+  try {
+    const promptPath = join(process.cwd(), 'prompts', 'compatibility-analysis.txt');
+    console.log('프롬프트 파일 경로:', promptPath);
+    
+    const promptContent = await readFile(promptPath, 'utf-8');
+    console.log('프롬프트 내용:', promptContent);
+    
+    return promptContent;
+  } catch (error) {
+    console.error('프롬프트 파일 읽기 오류:', error);
+    // 기본 프롬프트 반환
+    return '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 한국어로 분석해주세요.';
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // 요청에서 두 개의 이미지 파일 추출
+    const formData = await request.formData();
+    const image1File = formData.get('image1') as File;
+    const image2File = formData.get('image2') as File;
+    
+    if (!image1File || !image2File) {
+      return NextResponse.json(
+        { error: '두 개의 이미지 파일(image1, image2)이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    console.log('업로드된 파일 1:', image1File.name, '크기:', image1File.size);
+    console.log('업로드된 파일 2:', image2File.name, '크기:', image2File.size);
+
+    // 첫 번째 이미지 파일을 버퍼로 변환
+    const bytes1 = await image1File.arrayBuffer();
+    const buffer1 = Buffer.from(bytes1);
+
+    // 두 번째 이미지 파일을 버퍼로 변환
+    const bytes2 = await image2File.arrayBuffer();
+    const buffer2 = Buffer.from(bytes2);
+
+    // Supabase Storage에 첫 번째 이미지 업로드
+    const fileName1 = `compatibility-analysis/${Date.now()}-person1-${image1File.name}`;
+    const { data: uploadData1, error: uploadError1 } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(fileName1, buffer1, {
+        contentType: image1File.type,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError1) {
+      console.error('첫 번째 이미지 Supabase 업로드 오류:', uploadError1);
+      return NextResponse.json(
+        { error: '첫 번째 이미지 업로드 중 오류가 발생했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    // Supabase Storage에 두 번째 이미지 업로드
+    const fileName2 = `compatibility-analysis/${Date.now()}-person2-${image2File.name}`;
+    const { data: uploadData2, error: uploadError2 } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(fileName2, buffer2, {
+        contentType: image2File.type,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError2) {
+      console.error('두 번째 이미지 Supabase 업로드 오류:', uploadError2);
+      return NextResponse.json(
+        { error: '두 번째 이미지 업로드 중 오류가 발생했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    // 공개 URL 생성
+    const { data: { publicUrl: publicUrl1 } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(fileName1);
+
+    const { data: { publicUrl: publicUrl2 } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(fileName2);
+
+    console.log('첫 번째 이미지 Supabase 업로드 완료:', publicUrl1);
+    console.log('두 번째 이미지 Supabase 업로드 완료:', publicUrl2);
+
+    // 프롬프트 로드
+    const prompt = await loadPrompt();
+    
+    // OpenAI API 호출 (두 이미지 모두 포함)
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: publicUrl1
+              }
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: publicUrl2
+              }
+            }
+          ]
+        }
+      ],
+      response_format: {
+        type: "json_object"
+      },
+      max_tokens: 2500,
+      temperature: 0.7,
+    });
+
+    const compatibilityResult = response.choices[0]?.message?.content;
+    
+    if (!compatibilityResult) {
+      return NextResponse.json(
+        { error: 'AI 궁합 분석 결과를 생성할 수 없습니다.' },
+        { status: 500 }
+      );
+    }
+
+    // JSON 응답 파싱 및 검증
+    let parsedCompatibility;
+    try {
+      console.log('AI 원본 응답:', compatibilityResult);
+      
+      // JSON 코드 블록이 있는 경우 추출
+      const jsonMatch = compatibilityResult.match(/```json\s*([\s\S]*?)\s*```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : compatibilityResult;
+      
+      // JSON 문자열 정리 (불필요한 공백, 줄바꿈 제거)
+      const cleanJsonString = jsonString.trim().replace(/\n/g, ' ').replace(/\r/g, '');
+      
+      console.log('정리된 JSON 문자열:', cleanJsonString);
+      
+      parsedCompatibility = JSON.parse(cleanJsonString);
+      
+      // 필수 필드 검증
+      const requiredFields = [
+        'overall_score', 'personality_compatibility', 'emotional_compatibility',
+        'social_compatibility', 'communication_compatibility', 'long_term_prospects',
+        'improvement_suggestions', 'precautions'
+      ];
+      
+      const missingFields = requiredFields.filter(field => 
+        !parsedCompatibility[field]
+      );
+      
+      if (missingFields.length > 0) {
+        console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
+        // 기본 구조로 재구성
+        parsedCompatibility = {
+          overall_score: 0,
+          personality_compatibility: '분석 결과를 확인할 수 없습니다.',
+          emotional_compatibility: '분석 결과를 확인할 수 없습니다.',
+          social_compatibility: '분석 결과를 확인할 수 없습니다.',
+          communication_compatibility: '분석 결과를 확인할 수 없습니다.',
+          long_term_prospects: '분석 결과를 확인할 수 없습니다.',
+          improvement_suggestions: '분석 결과를 확인할 수 없습니다.',
+          precautions: '분석 결과를 확인할 수 없습니다.'
+        };
+      }
+      
+    } catch (parseError) {
+      console.error('JSON 파싱 오류:', parseError);
+      console.log('원본 응답:', compatibilityResult);
+
+      return NextResponse.json(
+        { 
+            error: '궁합 분석 중 오류가 발생했습니다.',
+            details: compatibilityResult
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      compatibility: parsedCompatibility,
+      images: {
+        person1: publicUrl1,
+        person2: publicUrl2
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('궁합 분석 API 오류:', error);
+    
+    return NextResponse.json(
+      { 
+        error: '궁합 분석 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// GET 요청 처리 (API 정보 제공)
+export async function GET() {
+  return NextResponse.json({
+    message: '궁합 분석 API',
+    description: '두 사람의 이미지 파일을 업로드하여 AI 기반 궁합 분석을 받을 수 있습니다.',
+    usage: 'POST /api/compatibility-analysis with multipart/form-data containing image1 and image2 files',
+    requestFormat: {
+      image1: 'File (첫 번째 사람의 이미지 파일)',
+      image2: 'File (두 번째 사람의 이미지 파일)'
+    },
+    features: [
+      '두 이미지 자동 업로드 (Supabase Storage)',
+      '전반적인 궁합 점수 (0-100점)',
+      '성격적 궁합 분석',
+      '감정적 궁합 분석',
+      '대인관계 궁합 분석',
+      '커뮤니케이션 궁합 분석',
+      '장기적 관계 전망',
+      '궁합 개선 방안',
+      '주의사항 및 갈등 해결 방안'
+    ],
+    responseFormat: {
+      success: 'boolean',
+      compatibility: 'object (궁합 분석 결과)',
+      images: 'object (업로드된 이미지 URL)',
+      timestamp: 'string (분석 완료 시간)'
+    }
+  });
+}
