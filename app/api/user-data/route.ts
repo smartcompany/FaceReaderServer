@@ -5,15 +5,49 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// 간단한 고유 ID 생성 함수
+function generateUniqueId(): string {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    console.log('user-profile POST input:', body);
-
-    const { userProfile } = body;
+    console.log('=== user-profile POST 요청 시작 ===');
+    
+    // multipart/form-data 처리
+    const formData = await req.formData();
+    console.log('formData 전체:', formData);
+    
+    // 각 필드별로 상세 로깅
+    const userId = formData.get('userId') as string;
+    const provider = formData.get('provider') as string || 'google';
+    const email = formData.get('email') as string;
+    const displayName = formData.get('displayName') as string;
+    const nickname = formData.get('nickname') as string;
+    const gender = formData.get('gender') as string;
+    const age = formData.get('age') as string;
+    const region = formData.get('region') as string;
+    
+    console.log('추출된 필드들:');
+    console.log('  userId:', userId);
+    console.log('  provider:', provider);
+    console.log('  email:', email);
+    console.log('  displayName:', displayName);
+    console.log('  nickname:', nickname);
+    console.log('  gender:', gender);
+    console.log('  age:', age);
+    console.log('  region:', region);
+    
+    // 이미지 파일 처리
+    const photoFile = formData.get('photo') as File | null;
+    let photoUrl = formData.get('photoUrl') as string || null;
+    
+    console.log('이미지 파일 정보:');
+    console.log('  photoFile:', photoFile ? `${photoFile.name} (${photoFile.size} bytes)` : '없음');
+    console.log('  photoUrl:', photoUrl);
 
     // 필수 필드 검증
-    if (!userProfile || !userProfile.userId || !userProfile.email) {
+    if (!userId || !email) {
       return NextResponse.json({ 
         success: false, 
         message: '필수 필드가 누락되었습니다.',
@@ -21,28 +55,65 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // provider 기본값 설정 (기존 Google 사용자 호환성)
-    const provider = userProfile.provider || 'google';
+    // 이미지 파일이 있으면 Supabase Storage에 업로드
+    if (photoFile && photoFile.size > 0) {
+      try {
+        console.log('이미지 파일 업로드 시작:', photoFile.name, photoFile.size);
+        
+        // 파일 확장자 추출
+        const fileExtension = photoFile.name.split('.').pop();
+        const fileName = `profiles/${userId}_${generateUniqueId()}.${fileExtension}`;
+        
+        // Supabase Storage에 업로드
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('face-reader')
+          .upload(fileName, photoFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('이미지 업로드 실패:', uploadError);
+          throw new Error(`이미지 업로드 실패: ${uploadError.message}`);
+        }
+
+        // 업로드된 이미지의 공개 URL 생성
+        const { data: urlData } = supabase.storage
+          .from('face-reader')
+          .getPublicUrl(fileName);
+
+        photoUrl = urlData.publicUrl;
+        console.log('이미지 업로드 성공, URL:', photoUrl);
+        
+      } catch (uploadError) {
+        console.error('이미지 업로드 중 오류:', uploadError);
+        return NextResponse.json({ 
+          success: false, 
+          message: '이미지 업로드에 실패했습니다.',
+          error: uploadError instanceof Error ? uploadError.message : '알 수 없는 오류'
+        }, { status: 500 });
+      }
+    }
 
     // Supabase에 사용자 프로필 데이터 저장
     const { data, error } = await supabase
       .from('face_reader_user_data')
       .upsert(
         {
-          user_id: userProfile.userId,
-          provider: provider, // provider 필드 추가
+          user_id: userId,
+          provider: provider,
           user_data: {
-            email: userProfile.email,
-            displayName: userProfile.displayName,
-            nickname: userProfile.nickname,
-            gender: userProfile.gender,
-            age: userProfile.age,
-            region: userProfile.region,
-            photoUrl: userProfile.photoUrl
+            email: email,
+            displayName: displayName,
+            nickname: nickname,
+            gender: gender,
+            age: age,
+            region: region,
+            photoUrl: photoUrl
           },
           updated_at: new Date().toISOString()
         },
-        { onConflict: 'provider,user_id' } // 복합 키로 충돌 처리
+        { onConflict: 'provider,user_id' }
       )
       .select();
 
@@ -66,30 +137,52 @@ export async function POST(req: Request) {
     }
 
     // 성공 응답
-    return NextResponse.json({
+    const successResponse = {
       success: true,
       message: '사용자 프로필이 성공적으로 저장되었습니다.',
       data: {
         userId: data[0].user_id,
         provider: data[0].provider,
-        email: userProfile.email,
-        displayName: userProfile.displayName,
-        nickname: userProfile.nickname,
-        gender: userProfile.gender,
-        age: userProfile.age,
-        region: userProfile.region,
-        photoUrl: userProfile.photoUrl,
+        email: email,
+        displayName: displayName,
+        nickname: nickname,
+        gender: gender,
+        age: age,
+        region: region,
+        photoUrl: photoUrl,
         createdAt: data[0].user_data.createdAt,
         updatedAt: data[0].user_data.updatedAt,
       }
-    }, { status: 201 });
+    };
+    
+    console.log('=== 성공 응답 전송 ===');
+    console.log('응답 데이터:', JSON.stringify(successResponse, null, 2));
+    
+    return NextResponse.json(successResponse, { status: 201 });
 
   } catch (e: any) {
-    console.error('Server error:', e);
+    console.error('=== user-profile POST 에러 발생 ===');
+    console.error('에러 타입:', typeof e);
+    console.error('에러 객체:', e);
+    console.error('에러 메시지:', e.message);
+    console.error('에러 스택:', e.stack);
+    
+    let errorMessage = '알 수 없는 오류가 발생했습니다.';
+    if (e.message) {
+      errorMessage = e.message;
+    } else if (typeof e === 'string') {
+      errorMessage = e;
+    }
+    
     return NextResponse.json({ 
       success: false, 
       message: '서버 오류가 발생했습니다.',
-      error: e.message 
+      error: errorMessage,
+      details: {
+        type: typeof e,
+        message: e.message,
+        stack: e.stack
+      }
     }, { status: 500 });
   }
 }
