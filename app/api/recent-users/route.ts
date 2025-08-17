@@ -8,17 +8,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 export async function GET(req: Request) {
   try {
     console.log('=== recent-users GET 요청 시작 ===');
-    
-    // 헤더에서 Google User ID 확인
-    const googleUserId = req.headers.get('X-Google-User-ID');
-    
-    if (!googleUserId) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Google User ID가 필요합니다.',
-        error: 'X-Google-User-ID 헤더가 누락되었습니다.' 
-      }, { status: 400 });
-    }
 
     // 쿼리 파라미터에서 페이징 정보 가져오기
     const url = new URL(req.url);
@@ -26,14 +15,12 @@ export async function GET(req: Request) {
     const limit = parseInt(url.searchParams.get('limit') || '10');
     const offset = (page - 1) * limit;
 
-    console.log('요청한 사용자 ID:', googleUserId);
     console.log('페이징 정보 - page:', page, 'limit:', limit, 'offset:', offset);
 
     // Supabase에서 최근 사용자 목록 조회 (페이징 적용)
     const { data, error, count } = await supabase
       .from('face_reader_user_data')
       .select('user_id, user_data, updated_at', { count: 'exact' })
-      .neq('user_id', googleUserId) // 자신 제외
       .order('updated_at', { ascending: false }) // 최근 업데이트 순
       .range(offset, offset + limit - 1); // 페이징 적용
 
