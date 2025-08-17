@@ -56,6 +56,7 @@ export async function GET(req: Request) {
       location: user.user_data?.region,
       photoUrl: user.user_data?.photoUrl,
       provider: user.provider, // DB에서 직접 가져온 provider 필드
+      gender: user.user_data?.gender,
       lastUpdated: user.updated_at
     }));
 
