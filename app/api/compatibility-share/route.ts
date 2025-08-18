@@ -1,0 +1,159 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase 클라이언트 초기화
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY!
+);
+
+// 궁합 결과 공유하기
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      senderId,        // 보내는 사람 ID
+      senderName,      // 보내는 사람 이름
+      partnerId,       // 받는 사람 ID (선택사항)
+      partnerName,     // 받는 사람 이름
+      partnerAge,      // 받는 사람 나이
+      partnerLocation, // 받는 사람 위치
+      partnerGender,   // 받는 사람 성별
+      compatibility,   // 궁합 분석 결과 JSON
+      images,          // 이미지 정보
+      timestamp,       // 분석 완료 시간
+      shareCode        // 공유 코드 (선택사항)
+    } = body;
+
+    // 필수 필드 검증
+    if (!senderId || !senderName || !partnerName || !compatibility) {
+      return NextResponse.json(
+        { error: '필수 정보가 누락되었습니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 공유 코드 생성 (없으면 자동 생성)
+    const finalShareCode = shareCode || generateShareCode();
+    
+    // 궁합 결과를 Supabase에 저장
+    const { data: shareData, error: shareError } = await supabase
+      .from('compatibility_shares')
+      .insert({
+        sender_id: senderId,
+        sender_name: senderName,
+        partner_id: partnerId || null,
+        partner_name: partnerName,
+        partner_age: partnerAge || null,
+        partner_location: partnerLocation || null,
+        partner_gender: partnerGender || null,
+        compatibility_result: compatibility,
+        images: images,
+        timestamp: timestamp,
+        share_code: finalShareCode,
+        created_at: new Date().toISOString(),
+        is_viewed: false
+      })
+      .select()
+      .single();
+
+    if (shareError) {
+      console.error('궁합 결과 저장 오류:', shareError);
+      return NextResponse.json(
+        { error: '궁합 결과 저장 중 오류가 발생했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    console.log('궁합 결과 공유 성공:', shareData);
+
+    return NextResponse.json({
+      success: true,
+      shareId: shareData.id,
+      shareCode: finalShareCode,
+      message: '궁합 결과가 성공적으로 공유되었습니다.',
+      shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://face-reader-app.vercel.app'}/compatibility-share/${finalShareCode}`
+    });
+
+  } catch (error) {
+    console.error('궁합 결과 공유 API 오류:', error);
+    
+    return NextResponse.json(
+      { 
+        error: '궁합 결과 공유 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// 공유된 궁합 결과 조회하기
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const shareCode = searchParams.get('code');
+    const shareId = searchParams.get('id');
+
+    if (!shareCode && !shareId) {
+      return NextResponse.json(
+        { error: '공유 코드 또는 ID가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 궁합 결과 조회
+    let query = supabase
+      .from('compatibility_shares')
+      .select('*');
+
+    if (shareCode) {
+      query = query.eq('share_code', shareCode);
+    } else if (shareId) {
+      query = query.eq('id', shareId);
+    }
+
+    const { data: shareData, error: shareError } = await query.single();
+
+    if (shareError || !shareData) {
+      return NextResponse.json(
+        { error: '공유된 궁합 결과를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
+    }
+
+    // 조회 상태 업데이트
+    if (!shareData.is_viewed) {
+      await supabase
+        .from('compatibility_shares')
+        .update({ is_viewed: true, viewed_at: new Date().toISOString() })
+        .eq('id', shareData.id);
+    }
+
+    return NextResponse.json({
+      success: true,
+      share: shareData
+    });
+
+  } catch (error) {
+    console.error('궁합 결과 조회 API 오류:', error);
+    
+    return NextResponse.json(
+      { 
+        error: '궁합 결과 조회 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// 공유 코드 생성 함수
+function generateShareCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
