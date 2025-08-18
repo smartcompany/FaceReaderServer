@@ -36,76 +36,93 @@ async function loadPrompt(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    // 요청에서 두 개의 이미지 파일 추출
     const formData = await request.formData();
-    const image1File = formData.get('image1') as File;
-    const image2File = formData.get('image2') as File;
+    const image1File = formData.get('image1') as File | null;
+    const image2File = formData.get('image2') as File | null;
+    const image1Url = formData.get('image1Url') as string | null;
+    const image2Url = formData.get('image2Url') as string | null;
     
-    if (!image1File || !image2File) {
+    let publicUrl1: string;
+    let publicUrl2: string;
+
+    // URL이 제공된 경우 파일 업로드 건너뛰기
+    if (image1Url && image2Url) {
+      console.log('URL 모드로 궁합 분석 진행');
+      console.log('이미지1 URL:', image1Url);
+      console.log('이미지2 URL:', image2Url);
+      
+      publicUrl1 = image1Url;
+      publicUrl2 = image2Url;
+    } else if (image1File && image2File) {
+      // 기존 파일 업로드 로직
+      console.log('파일 업로드 모드로 궁합 분석 진행');
+      console.log('업로드된 파일 1:', image1File.name, '크기:', image1File.size);
+      console.log('업로드된 파일 2:', image2File.name, '크기:', image2File.size);
+
+      // 첫 번째 이미지 파일을 버퍼로 변환
+      const bytes1 = await image1File.arrayBuffer();
+      const buffer1 = Buffer.from(bytes1);
+
+      // 두 번째 이미지 파일을 버퍼로 변환
+      const bytes2 = await image2File.arrayBuffer();
+      const buffer2 = Buffer.from(bytes2);
+
+      // Supabase Storage에 첫 번째 이미지 업로드
+      const fileName1 = `compatibility-analysis/${Date.now()}-person1-${image1File.name}`;
+      const { data: uploadData1, error: uploadError1 } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(fileName1, buffer1, {
+          contentType: image1File.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError1) {
+        console.error('첫 번째 이미지 Supabase 업로드 오류:', uploadError1);
+        return NextResponse.json(
+          { error: '첫 번째 이미지 업로드 중 오류가 발생했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      // Supabase Storage에 두 번째 이미지 업로드
+      const fileName2 = `compatibility-analysis/${Date.now()}-person2-${image2File.name}`;
+      const { data: uploadData2, error: uploadError2 } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(fileName2, buffer2, {
+          contentType: image2File.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError2) {
+        console.error('두 번째 이미지 Supabase 업로드 오류:', uploadError2);
+        return NextResponse.json(
+          { error: '두 번째 이미지 업로드 중 오류가 발생했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      // 공개 URL 생성
+      const { data: { publicUrl: url1 } } = supabase.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(fileName1);
+
+      const { data: { publicUrl: url2 } } = supabase.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(fileName2);
+
+      publicUrl1 = url1;
+      publicUrl2 = url2;
+
+      console.log('첫 번째 이미지 Supabase 업로드 완료:', publicUrl1);
+      console.log('두 번째 이미지 Supabase 업로드 완료:', publicUrl2);
+    } else {
       return NextResponse.json(
-        { error: '두 개의 이미지 파일(image1, image2)이 필요합니다.' },
+        { error: '두 개의 이미지 파일(image1, image2) 또는 두 개의 이미지 URL(image1Url, image2Url)이 필요합니다.' },
         { status: 400 }
       );
     }
-
-    console.log('업로드된 파일 1:', image1File.name, '크기:', image1File.size);
-    console.log('업로드된 파일 2:', image2File.name, '크기:', image2File.size);
-
-    // 첫 번째 이미지 파일을 버퍼로 변환
-    const bytes1 = await image1File.arrayBuffer();
-    const buffer1 = Buffer.from(bytes1);
-
-    // 두 번째 이미지 파일을 버퍼로 변환
-    const bytes2 = await image2File.arrayBuffer();
-    const buffer2 = Buffer.from(bytes2);
-
-    // Supabase Storage에 첫 번째 이미지 업로드
-    const fileName1 = `compatibility-analysis/${Date.now()}-person1-${image1File.name}`;
-    const { data: uploadData1, error: uploadError1 } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(fileName1, buffer1, {
-        contentType: image1File.type,
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (uploadError1) {
-      console.error('첫 번째 이미지 Supabase 업로드 오류:', uploadError1);
-      return NextResponse.json(
-        { error: '첫 번째 이미지 업로드 중 오류가 발생했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    // Supabase Storage에 두 번째 이미지 업로드
-    const fileName2 = `compatibility-analysis/${Date.now()}-person2-${image2File.name}`;
-    const { data: uploadData2, error: uploadError2 } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(fileName2, buffer2, {
-        contentType: image2File.type,
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (uploadError2) {
-      console.error('두 번째 이미지 Supabase 업로드 오류:', uploadError2);
-      return NextResponse.json(
-        { error: '두 번째 이미지 업로드 중 오류가 발생했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    // 공개 URL 생성
-    const { data: { publicUrl: publicUrl1 } } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(fileName1);
-
-    const { data: { publicUrl: publicUrl2 } } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(fileName2);
-
-    console.log('첫 번째 이미지 Supabase 업로드 완료:', publicUrl1);
-    console.log('두 번째 이미지 Supabase 업로드 완료:', publicUrl2);
 
     // 프롬프트 로드
     const prompt = await loadPrompt();
