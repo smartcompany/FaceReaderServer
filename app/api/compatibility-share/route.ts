@@ -96,16 +96,11 @@ export async function GET(request: NextRequest) {
     const shareId = searchParams.get('id');
     const userId = searchParams.get('userId');
 
-    // 특정 사용자가 받은 궁합 결과 목록 조회 (최신 사용자 정보 포함)
+    // 특정 사용자가 받은 궁합 결과 목록 조회
     if (userId) {
       const { data: shares, error: sharesError } = await supabase
         .from('compatibility_shares')
-        .select(`
-          *,
-          sender_info:face_reader_user_data!compatibility_shares_sender_id_fkey(
-            user_data
-          )
-        `)
+        .select('*')
         .eq('partner_id', userId)
         .order('created_at', { ascending: false });
 
@@ -115,6 +110,40 @@ export async function GET(request: NextRequest) {
           { error: '받은 궁합 결과를 조회할 수 없습니다.' },
           { status: 500 }
         );
+      }
+
+      // 각 궁합 결과에 대해 sender의 최신 정보 조회
+      if (shares && shares.length > 0) {
+        const sharesWithSenderInfo = await Promise.all(
+          shares.map(async (share) => {
+            if (share.sender_id) {
+              try {
+                const { data: userData, error: userError } = await supabase
+                  .from('face_reader_user_data')
+                  .select('user_data')
+                  .eq('user_id', share.sender_id)
+                  .single();
+
+                if (!userError && userData) {
+                  return {
+                    ...share,
+                    sender_info: { user_data: userData.user_data }
+                  };
+                }
+              } catch (e) {
+                console.log(`사용자 ${share.sender_id} 정보 조회 실패:`, e);
+              }
+            }
+            
+            // sender_info가 없으면 기본 정보만 반환
+            return share;
+          })
+        );
+
+        return NextResponse.json({
+          success: true,
+          shares: sharesWithSenderInfo
+        });
       }
 
       return NextResponse.json({
@@ -151,6 +180,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // sender의 최신 정보 조회
+    let shareWithSenderInfo = shareData;
+    if (shareData.sender_id) {
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from('face_reader_user_data')
+          .select('user_data')
+          .eq('user_id', shareData.sender_id)
+          .single();
+
+        if (!userError && userData) {
+          shareWithSenderInfo = {
+            ...shareData,
+            sender_info: { user_data: userData.user_data }
+          };
+        }
+      } catch (e) {
+        console.log(`사용자 ${shareData.sender_id} 정보 조회 실패:`, e);
+      }
+    }
+
     // 조회 상태 업데이트
     if (!shareData.is_viewed) {
       await supabase
@@ -161,7 +211,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      share: shareData
+      share: shareWithSenderInfo
     });
 
   } catch (error) {
