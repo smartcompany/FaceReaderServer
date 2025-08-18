@@ -172,6 +172,69 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// 관심도 응답 저장하기
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      shareId,        // 궁합 결과 ID
+      interest        // 관심도 (true: 관심있음, false: 관심없음)
+    } = body;
+
+    // 필수 필드 검증
+    if (!shareId) {
+      return NextResponse.json(
+        { error: 'shareId가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    if (interest === undefined || interest === null) {
+      return NextResponse.json(
+        { error: '관심도 응답이 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 궁합 결과의 interest 필드 업데이트
+    const { data: updateData, error: updateError } = await supabase
+      .from('compatibility_shares')
+      .update({ 
+        interest: interest,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', shareId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('관심도 응답 업데이트 오류:', updateError);
+      return NextResponse.json(
+        { error: '관심도 응답 업데이트 중 오류가 발생했습니다.' },
+        { status: 500 }
+      );
+    }
+
+    console.log('관심도 응답 업데이트 성공:', updateData);
+
+    return NextResponse.json({
+      success: true,
+      message: '관심도 응답이 성공적으로 저장되었습니다.'
+    });
+
+  } catch (error) {
+    console.error('관심도 응답 저장 API 오류:', error);
+    
+    return NextResponse.json(
+      { 
+        error: '관심도 응답 저장 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      },
+      { status: 500 }
+    );
+  }
+}
+
 // 공유 코드 생성 함수
 function generateShareCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
