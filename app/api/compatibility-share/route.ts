@@ -96,11 +96,16 @@ export async function GET(request: NextRequest) {
     const shareId = searchParams.get('id');
     const userId = searchParams.get('userId');
 
-    // 특정 사용자가 받은 궁합 결과 목록 조회
+    // 특정 사용자가 받은 궁합 결과 목록 조회 (최신 사용자 정보 포함)
     if (userId) {
       const { data: shares, error: sharesError } = await supabase
         .from('compatibility_shares')
-        .select('*')
+        .select(`
+          *,
+          sender_info:face_reader_user_data!compatibility_shares_sender_id_fkey(
+            user_data
+          )
+        `)
         .eq('partner_id', userId)
         .order('created_at', { ascending: false });
 
