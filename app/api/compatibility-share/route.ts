@@ -94,10 +94,34 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const shareCode = searchParams.get('code');
     const shareId = searchParams.get('id');
+    const userId = searchParams.get('userId');
 
+    // 특정 사용자가 받은 궁합 결과 목록 조회
+    if (userId) {
+      const { data: shares, error: sharesError } = await supabase
+        .from('compatibility_shares')
+        .select('*')
+        .eq('partner_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (sharesError) {
+        console.error('받은 궁합 결과 조회 오류:', sharesError);
+        return NextResponse.json(
+          { error: '받은 궁합 결과를 조회할 수 없습니다.' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        shares: shares || []
+      });
+    }
+
+    // 공유 코드나 ID로 개별 결과 조회
     if (!shareCode && !shareId) {
       return NextResponse.json(
-        { error: '공유 코드 또는 ID가 필요합니다.' },
+        { error: '공유 코드, ID 또는 userId가 필요합니다.' },
         { status: 400 }
       );
     }
