@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
     const shareCode = searchParams.get('code');
     const shareId = searchParams.get('id');
     const userId = searchParams.get('userId');
+    const senderId = searchParams.get('senderId');
 
     // 특정 사용자가 받은 궁합 결과 목록 조회
     if (userId) {
@@ -144,6 +145,28 @@ export async function GET(request: NextRequest) {
           success: true,
           shares: sharesWithSenderInfo
         });
+      }
+
+      return NextResponse.json({
+        success: true,
+        shares: shares || []
+      });
+    }
+
+    // 특정 사용자가 보낸 궁합 결과 목록 조회
+    if (senderId) {
+      const { data: shares, error: sharesError } = await supabase
+        .from('compatibility_shares')
+        .select('*')
+        .eq('sender_id', senderId)
+        .order('created_at', { ascending: false });
+
+      if (sharesError) {
+        console.error('보낸 궁합 결과 조회 오류:', sharesError);
+        return NextResponse.json(
+          { error: '보낸 궁합 결과를 조회할 수 없습니다.' },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({
