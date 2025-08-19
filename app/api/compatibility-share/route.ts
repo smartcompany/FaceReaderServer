@@ -156,13 +156,13 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// 관심도 응답 저장하기
+// 상호작용 상태 응답 저장하기
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const {
       shareId,        // 궁합 결과 ID
-      interest        // 관심도 (true: 관심있음, false: 관심없음)
+      interaction     // 상호작용 상태 (ENUM: interested, notInterested, chatRequest, chatDenied, chatAccepted)
     } = body;
 
     // 필수 필드 검증
@@ -173,18 +173,34 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (interest === undefined || interest === null) {
+    if (interaction === undefined || interaction === null) {
       return NextResponse.json(
-        { error: '관심도 응답이 필요합니다.' },
+        { error: '상호작용 상태가 필요합니다.' },
         { status: 400 }
       );
     }
 
-    // 궁합 결과의 interest 필드 업데이트
+    // 허용된 ENUM 값 검증
+    const allowedInteractions = [
+      'interested', 
+      'notInterested', 
+      'chatRequest', 
+      'chatDenied', 
+      'chatAccepted'
+    ];
+    
+    if (!allowedInteractions.includes(interaction)) {
+      return NextResponse.json(
+        { error: '유효하지 않은 상호작용 상태입니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 궁합 결과의 interaction 필드 업데이트
     const { data: updateData, error: updateError } = await supabase
       .from('compatibility_shares')
       .update({ 
-        interest: interest,
+        interaction: interaction,
         updated_at: new Date().toISOString()
       })
       .eq('id', shareId)
@@ -192,26 +208,26 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error('관심도 응답 업데이트 오류:', updateError);
+      console.error('상호작용 상태 업데이트 오류:', updateError);
       return NextResponse.json(
-        { error: '관심도 응답 업데이트 중 오류가 발생했습니다.' },
+        { error: '상호작용 상태 업데이트 중 오류가 발생했습니다.' },
         { status: 500 }
       );
     }
 
-    console.log('관심도 응답 업데이트 성공:', updateData);
+    console.log('상호작용 상태 업데이트 성공:', updateData);
 
     return NextResponse.json({
       success: true,
-      message: '관심도 응답이 성공적으로 저장되었습니다.'
+      message: '상호작용 상태가 성공적으로 저장되었습니다.'
     });
 
   } catch (error) {
-    console.error('관심도 응답 저장 API 오류:', error);
+    console.error('상호작용 상태 저장 API 오류:', error);
     
     return NextResponse.json(
       { 
-        error: '관심도 응답 저장 중 오류가 발생했습니다.',
+        error: '상호작용 상태 저장 중 오류가 발생했습니다.',
         details: error instanceof Error ? error.message : '알 수 없는 오류'
       },
       { status: 500 }
