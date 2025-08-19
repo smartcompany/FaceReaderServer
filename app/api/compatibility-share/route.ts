@@ -13,46 +13,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       senderId,        // 보내는 사람 ID
-      senderName,      // 보내는 사람 이름
       receiverId,       // 받는 사람 ID (선택사항)
-      partnerName,     // 받는 사람 이름
-      partnerAge,      // 받는 사람 나이
-      partnerLocation, // 받는 사람 위치
-      partnerGender,   // 받는 사람 성별
       compatibility,   // 궁합 분석 결과 JSON
-      images,          // 이미지 정보
-      timestamp,       // 분석 완료 시간
-      shareCode        // 공유 코드 (선택사항)
     } = body;
 
     // 필수 필드 검증
-    if (!senderId || !senderName || !partnerName || !compatibility) {
+    if (!senderId || !receiverId || !compatibility) {
       return NextResponse.json(
         { error: '필수 정보가 누락되었습니다.' },
         { status: 400 }
       );
     }
 
-    // 공유 코드 생성 (없으면 자동 생성)
-    const finalShareCode = shareCode || generateShareCode();
-    
     // 궁합 결과를 Supabase에 저장
     const { data: shareData, error: shareError } = await supabase
       .from('compatibility_shares')
       .insert({
         sender_id: senderId,
-        sender_name: senderName,
-        receiver_id: receiverId || null,
-        partner_name: partnerName,
-        partner_age: partnerAge || null,
-        partner_location: partnerLocation || null,
-        partner_gender: partnerGender || null,
+        receiver_id: receiverId,
         compatibility_result: compatibility,
-        images: images,
-        timestamp: timestamp,
-        share_code: finalShareCode,
-        created_at: new Date().toISOString(),
-        is_viewed: false
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -70,7 +50,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       shareId: shareData.id,
-      shareCode: finalShareCode,
       message: '궁합 결과가 성공적으로 공유되었습니다.',
       shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://face-reader-app.vercel.app'}/compatibility-share`
     });
@@ -123,44 +102,51 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // userId인 경우에만 sender 정보 조회 (받은 궁합)
+  // JOIN을 사용하여 사용자 정보를 한 번에 조회
   if (shares && shares.length > 0) {
-    const sharesWithSenderInfo = await Promise.all(
-      shares.map(async (share) => {
-        let matchId;
-        if (receiverId) {
-          matchId = share.sender_id;
-        } else if (senderId) {
-          matchId = share.receiver_id;
-        }
+    // 모든 고유한 user_id 수집
+    const allUserIds = new Set<string>();
+    shares.forEach(share => {
+      if (share.sender_id) allUserIds.add(share.sender_id);
+      if (share.receiver_id) allUserIds.add(share.receiver_id);
+    });
 
-        if (matchId) {
-          try {
-            const { data: userData, error: userError } = await supabase
-              .from('face_reader_user_data')
-              .select('user_data')
-              .eq('user_id', matchId)
-              .single();
+    // 한 번의 쿼리로 모든 사용자 정보 조회
+    const { data: allUserData, error: userDataError } = await supabase
+      .from('face_reader_user_data')
+      .select('user_id, user_data')
+      .in('user_id', Array.from(allUserIds));
 
-            if (!userError && userData) {
-              return {
-                ...share,
-                match_info: { user_data: userData.user_data }
-              };
-            }
-          } catch (e) {
-            console.log(`사용자 ${matchId} 정보 조회 실패:`, e);
-          }
-        }
-        
-        // match_info 없으면 기본 정보만 반환
-        return share;
-      })
-    );
+    if (userDataError) {
+      console.error('사용자 정보 조회 오류:', userDataError);
+      // 에러가 발생해도 기본 share 데이터는 반환
+      return NextResponse.json({
+        success: true,
+        shares: shares
+      });
+    }
+
+    // user_id를 키로 하는 Map 생성
+    const userDataMap = new Map();
+    allUserData?.forEach(user => {
+      userDataMap.set(user.user_id, user.user_data);
+    });
+
+    // share 데이터에 사용자 정보 추가
+    const sharesWithUserInfo = shares.map(share => {
+      const senderUserData = userDataMap.get(share.sender_id);
+      const receiverUserData = userDataMap.get(share.receiver_id);
+
+      return {
+        ...share,
+        sender_info: senderUserData ? { user_data: senderUserData } : null,
+        receiver_info: receiverUserData ? { user_data: receiverUserData } : null
+      };
+    });
 
     return NextResponse.json({
       success: true,
-      shares: sharesWithSenderInfo
+      shares: sharesWithUserInfo
     });
   }
 
@@ -233,12 +219,3 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// 공유 코드 생성 함수
-function generateShareCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
