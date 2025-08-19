@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     // Supabase에서 최근 사용자 목록 조회 (페이징 적용)
     const { data, error, count } = await supabase
       .from('face_reader_user_data')
-      .select('user_id, provider, user_data, updated_at', { count: 'exact' })
+      .select('user_id, user_data, updated_at', { count: 'exact' })
       .order('updated_at', { ascending: false }) // 최근 업데이트 순
       .range(offset, offset + limit - 1); // 페이징 적용
 
@@ -55,7 +55,6 @@ export async function GET(req: Request) {
       age: user.user_data?.age ? `${user.user_data.age}세` : '나이 미설정',
       location: user.user_data?.region,
       photoUrl: user.user_data?.photoUrl,
-      provider: user.provider, // DB에서 직접 가져온 provider 필드
       gender: user.user_data?.gender,
       lastUpdated: user.updated_at
     }));

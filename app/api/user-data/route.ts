@@ -20,7 +20,6 @@ export async function POST(req: Request) {
     
     // 각 필드별로 상세 로깅
     const userId = formData.get('userId') as string;
-    const provider = formData.get('provider') as string || 'google';
     const email = formData.get('email') as string;
     const displayName = formData.get('displayName') as string;
     const nickname = formData.get('nickname') as string;
@@ -30,7 +29,6 @@ export async function POST(req: Request) {
     
     console.log('추출된 필드들:');
     console.log('  userId:', userId);
-    console.log('  provider:', provider);
     console.log('  email:', email);
     console.log('  displayName:', displayName);
     console.log('  nickname:', nickname);
@@ -101,7 +99,6 @@ export async function POST(req: Request) {
       .upsert(
         {
           user_id: userId,
-          provider: provider,
           user_data: {
             email: email,
             displayName: displayName,
@@ -113,7 +110,7 @@ export async function POST(req: Request) {
           },
           updated_at: new Date().toISOString()
         },
-        { onConflict: 'provider,user_id' }
+        { onConflict: 'user_id' }
       )
       .select();
 
@@ -191,7 +188,6 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const userId = url.searchParams.get('userId');
-    const provider = url.searchParams.get('provider') || 'google'; // provider 파라미터 추가
 
     if (!userId) {
       return NextResponse.json({ 
@@ -201,14 +197,13 @@ export async function GET(req: Request) {
       }, { status: 400 });
     }
 
-    console.log('user-profile GET request for userId:', userId, 'provider:', provider);
+    console.log('user-profile GET request for userId:', userId);
 
-    // Supabase에서 사용자 프로필 데이터 조회 (provider 포함)
+    // Supabase에서 사용자 프로필 데이터 조회
     const { data, error } = await supabase
       .from('face_reader_user_data')
-      .select('user_id, provider, user_data, updated_at')
+      .select('user_id, user_data, updated_at')
       .eq('user_id', userId)
-      .eq('provider', provider) // provider로도 필터링
       .single();
 
     if (error) {
@@ -217,7 +212,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ 
           success: false, 
           message: '사용자를 찾을 수 없습니다.',
-          error: '해당 userId와 provider로 등록된 사용자가 없습니다.' 
+          error: '해당 userId로 등록된 사용자가 없습니다.' 
         }, { status: 404 });
       }
       
@@ -242,7 +237,6 @@ export async function GET(req: Request) {
       success: true,
       data: {
         userId: data.user_id,
-        provider: data.provider,
         email: data.user_data.email,
         displayName: data.user_data.displayName,
         nickname: data.user_data.nickname,
