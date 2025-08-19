@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS compatibility_shares (
     sender_name TEXT NOT NULL,
     
     -- 받는 사람 정보
-    partner_id TEXT, -- 선택사항 (앱 사용자인 경우)
+    receiver_id TEXT, -- 선택사항 (앱 사용자인 경우)
     partner_name TEXT NOT NULL,
     partner_age TEXT,
     partner_location TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS compatibility_shares (
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_compatibility_shares_share_code ON compatibility_shares(share_code);
 CREATE INDEX IF NOT EXISTS idx_compatibility_shares_sender_id ON compatibility_shares(sender_id);
-CREATE INDEX IF NOT EXISTS idx_compatibility_shares_partner_id ON compatibility_shares(partner_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_shares_receiver_id ON compatibility_shares(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_compatibility_shares_created_at ON compatibility_shares(created_at);
 
 -- RLS (Row Level Security) 활성화
@@ -73,7 +73,7 @@ CREATE TRIGGER update_compatibility_shares_updated_at
 COMMENT ON TABLE compatibility_shares IS '궁합 분석 결과를 사용자 간에 공유하기 위한 테이블';
 COMMENT ON COLUMN compatibility_shares.sender_id IS '궁합 결과를 공유하는 사용자의 ID';
 COMMENT ON COLUMN compatibility_shares.sender_name IS '궁합 결과를 공유하는 사용자의 이름';
-COMMENT ON COLUMN compatibility_shares.partner_id IS '궁합 결과를 받는 사용자의 ID (앱 사용자인 경우)';
+COMMENT ON COLUMN compatibility_shares.receiver_id IS '궁합 결과를 받는 사용자의 ID (앱 사용자인 경우)';
 COMMENT ON COLUMN compatibility_shares.partner_name IS '궁합 결과를 받는 사용자의 이름';
 COMMENT ON COLUMN compatibility_shares.compatibility_result IS '궁합 분석 결과 JSON';
 COMMENT ON COLUMN compatibility_shares.share_code IS '공유를 위한 고유 코드';

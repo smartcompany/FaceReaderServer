@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const {
       senderId,        // 보내는 사람 ID
       senderName,      // 보내는 사람 이름
-      partnerId,       // 받는 사람 ID (선택사항)
+      receiverId,       // 받는 사람 ID (선택사항)
       partnerName,     // 받는 사람 이름
       partnerAge,      // 받는 사람 나이
       partnerLocation, // 받는 사람 위치
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       .insert({
         sender_id: senderId,
         sender_name: senderName,
-        partner_id: partnerId || null,
+        receiver_id: receiverId || null,
         partner_name: partnerName,
         partner_age: partnerAge || null,
         partner_location: partnerLocation || null,
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false });
 
   if (receiverId) {
-    query = query.eq('partner_id', receiverId);
+    query = query.eq('receiver_id', receiverId);
   } else if (senderId) {
     query = query.eq('sender_id', senderId);
   }
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
         if (receiverId) {
           matchId = share.sender_id;
         } else if (senderId) {
-          matchId = share.partner_id;
+          matchId = share.receiver_id;
         }
 
         if (matchId) {
