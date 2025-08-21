@@ -80,16 +80,20 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // 사용자 ID나 보낸 사람 ID로 궁합 결과 목록 조회
+  // 사용자 ID나 보낸 사람 ID로 궁합 결과 목록 조회 (삭제된 항목 제외)
   let query = supabase
     .from('compatibility_shares')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (receiverId) {
-    query = query.eq('receiver_id', receiverId);
+    // 받은 궁합: receiver_delete가 false인 항목만 조회
+    query = query.eq('receiver_id', receiverId)
+                 .eq('receiver_delete', false);
   } else if (senderId) {
-    query = query.eq('sender_id', senderId);
+    // 보낸 궁합: sender_delete가 false인 항목만 조회
+    query = query.eq('sender_id', senderId)
+                 .eq('sender_delete', false);
   }
 
   const { data: shares, error: sharesError } = await query;
