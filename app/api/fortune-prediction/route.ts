@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
-import { getLanguageFromHeaders, getLanguageSpecificPrompt } from '../_helpers';
+import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 
 const STORAGE_BUCKET = "face-reader";
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     
     // OpenAI API 호출
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      ...openAIConfig,
       messages: [
         {
           role: "user",
@@ -111,8 +111,6 @@ export async function POST(request: NextRequest) {
       response_format: {
         type: "json_object"
       },
-      max_tokens: 2500,
-      temperature: 0.7,
     });
 
     const fortuneResult = response.choices[0]?.message?.content;
