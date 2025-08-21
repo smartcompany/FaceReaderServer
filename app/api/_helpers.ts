@@ -78,9 +78,5 @@ export function getLanguageSpecificMessage(key: string, language: string): strin
 // OpenAI 공통 설정
 export const openAIConfig = {
   model: "gpt-5-mini",
-  temperature: 0.7,
-  max_tokens: 2000,
-  top_p: 1,
-  frequency_penalty: 0,
-  presence_penalty: 0,
+  max_completion_tokens: 2000,
 };
