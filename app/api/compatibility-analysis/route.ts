@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { getLanguageFromHeaders, getLanguageSpecificPrompt } from '../_helpers';
 
 const STORAGE_BUCKET = "face-reader";
 
@@ -18,7 +19,7 @@ const supabase = createClient(
 );
 
 // 프롬프트 파일 읽기 함수
-async function loadPrompt(): Promise<string> {
+async function loadPrompt(language: string): Promise<string> {
   try {
     const promptPath = join(process.cwd(), 'prompts', 'compatibility-analysis.txt');
     console.log('프롬프트 파일 경로:', promptPath);
@@ -26,16 +27,22 @@ async function loadPrompt(): Promise<string> {
     const promptContent = await readFile(promptPath, 'utf-8');
     console.log('프롬프트 내용:', promptContent);
     
-    return promptContent;
+    // 언어별 프롬프트 생성
+    return getLanguageSpecificPrompt(promptContent, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
     // 기본 프롬프트 반환
-    return '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 한국어로 분석해주세요.';
+    const basePrompt = '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 분석해주세요.';
+    return getLanguageSpecificPrompt(basePrompt, language);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // 언어 정보 추출
+    const language = getLanguageFromHeaders(request);
+    console.log('요청 언어:', language);
+    
     const formData = await request.formData();
     const image1File = formData.get('image1') as File | null;
     const image2File = formData.get('image2') as File | null;
@@ -125,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 프롬프트 로드
-    const prompt = await loadPrompt();
+    const prompt = await loadPrompt(language);
     
     // OpenAI API 호출 (두 이미지 모두 포함)
     const response = await openai.chat.completions.create({
