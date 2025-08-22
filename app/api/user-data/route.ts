@@ -21,7 +21,6 @@ export async function POST(req: Request) {
     // 각 필드별로 상세 로깅
     const userId = formData.get('userId') as string;
     const email = formData.get('email') as string;
-    const displayName = formData.get('displayName') as string;
     const nickname = formData.get('nickname') as string;
     const gender = formData.get('gender') as string;
     const age = formData.get('age') as string;
@@ -30,7 +29,6 @@ export async function POST(req: Request) {
     console.log('추출된 필드들:');
     console.log('  userId:', userId);
     console.log('  email:', email);
-    console.log('  displayName:', displayName);
     console.log('  nickname:', nickname);
     console.log('  gender:', gender);
     console.log('  age:', age);
@@ -101,7 +99,6 @@ export async function POST(req: Request) {
           user_id: userId,
           user_data: {
             email: email,
-            displayName: displayName,
             nickname: nickname,
             gender: gender,
             age: age,
@@ -141,7 +138,6 @@ export async function POST(req: Request) {
         userId: data[0].user_id,
         provider: data[0].provider,
         email: email,
-        displayName: displayName,
         nickname: nickname,
         gender: gender,
         age: age,
@@ -238,7 +234,6 @@ export async function GET(req: Request) {
       data: {
         userId: data.user_id,
         email: data.user_data.email,
-        displayName: data.user_data.displayName,
         nickname: data.user_data.nickname,
         gender: data.user_data.gender,
         age: data.user_data.age,
