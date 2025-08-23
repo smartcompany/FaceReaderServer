@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
     // 토큰 중복 방지: token 기준 upsert
     const { error } = await supabase
-      .from('fcm_tokens')
+      .from('face_reader_fcm_tokens')
       .upsert(
         [{
           token,
