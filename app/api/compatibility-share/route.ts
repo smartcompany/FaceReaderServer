@@ -190,7 +190,8 @@ export async function PATCH(request: NextRequest) {
       'notInterested', 
       'chatRequest', 
       'chatDenied', 
-      'chatAccepted'
+      'chatAccepted',
+      'chatCompleted' // 새로 추가
     ];
     
     if (!allowedInteractions.includes(interaction)) {
