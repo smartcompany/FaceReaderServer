@@ -23,7 +23,7 @@ if (!admin.apps.length) {
 
 export async function POST(req: Request) {
   try {
-    const { receiverId, message, senderId, type = 'chat_message' } = await req.json();
+    const { receiverId, message, senderId, type = 'chat_message', chatRoomId, partnerId, partnerName, compatibilityShareId } = await req.json();
 
     if (!receiverId || !message || !senderId) {
       return NextResponse.json(
@@ -92,6 +92,10 @@ export async function POST(req: Request) {
             receiverId,
             type,
             message,
+            chatRoomId: chatRoomId || null,
+            partnerId: partnerId || null,
+            partnerName: partnerName || null,
+            compatibilityShareId: compatibilityShareId || null,
           },
           token: tokenData.token,
         };
