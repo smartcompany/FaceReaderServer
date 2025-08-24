@@ -111,6 +111,7 @@ export async function POST(req: Request) {
         type: type,
         message: message,
         senderName: senderName,
+        compatibilityShareId: compatibilityShareId,
       },
       token,
     });
