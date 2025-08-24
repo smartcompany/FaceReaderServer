@@ -222,9 +222,12 @@ export async function PATCH(request: NextRequest) {
 
     console.log('상호작용 상태 업데이트 성공:', updateData);
 
+    // senderId와 receiverId를 보내면 클라이언트에서 상대방 정보를 본인아이디가 아닌것을 
+    // 선택해서 보내야 한다.
     return NextResponse.json({
       success: true,
       receiverId: updateData.receiver_id,
+      senderId: updateData.sender_id,
       message: '상호작용 상태가 성공적으로 저장되었습니다.'
     });
 
