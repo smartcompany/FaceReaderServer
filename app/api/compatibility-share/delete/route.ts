@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // 업데이트된 레코드 조회
     const { data: updatedRecord, error: refetchError } = await supabase
       .from('compatibility_shares')
-      .select('sender_delete, receiver_delete')
+      .select('sender_delete, receiver_delete, receiver_id')
       .eq('id', shareId)
       .single();
 
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `${deleteType === 'sender' ? '보낸 사람' : '받은 사람'} 삭제 처리 완료`,
+      receiver_id: updatedRecord.receiver_id,
       action: 'updated'
     });
 
