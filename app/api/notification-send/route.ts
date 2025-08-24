@@ -95,11 +95,12 @@ export async function POST(req: Request) {
         message: message || '',
         chatRoomId: chatRoomId || '',
         senderName: senderName || '',
+        compatibilityShareId: compatibilityShareId || '',
       },
       token,
     });
 
-    const createCompatibilityPayload = (token: string) => ({
+    const createInteractionPayload = (token: string) => ({
       notification: {
         title,
         body,
@@ -110,7 +111,6 @@ export async function POST(req: Request) {
         type: type || '',
         message: message || '',
         senderName: senderName || '',
-        compatibilityShareId: compatibilityShareId || '',
       },
       token,
     });
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
         // type에 따라 다른 payload 생성
         const payload = type === 'chat_message' 
           ? createChatMessagePayload(tokenData.token)
-          : createCompatibilityPayload(tokenData.token);
+          : createInteractionPayload(tokenData.token);
 
         const result = await admin.messaging().send(payload);
         console.log('✅ 푸시 알림 전송 성공:', result);
