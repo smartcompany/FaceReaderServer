@@ -82,25 +82,46 @@ export async function POST(req: Request) {
         title = `${senderName}님으로부터 알림`;
     }
 
+    // payload 생성 함수들
+    const createChatMessagePayload = (token: string) => ({
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        senderId: senderId || '',
+        receiverId: receiverId || '',
+        type: type || '',
+        message: message || '',
+        chatRoomId: chatRoomId || '',
+        senderName: senderName || '',
+      },
+      token,
+    });
+
+    const createCompatibilityPayload = (token: string) => ({
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        senderId: senderId || '',
+        receiverId: receiverId || '',
+        type: type || '',
+        message: message || '',
+        senderName: senderName || '',
+        compatibilityShareId: compatibilityShareId || '',
+      },
+      token,
+    });
+
     // 각 토큰에 대해 푸시 알림 전송
     const sendPromises = tokens.map(async (tokenData) => {
       try {
-        const payload = {
-          notification: {
-            title,
-            body,
-          },
-          data: {
-            senderId,
-            receiverId,
-            type,
-            message,
-            chatRoomId: chatRoomId,
-            senderName: senderName,
-            compatibilityShareId: compatibilityShareId,
-          },
-          token: tokenData.token,
-        };
+        // type에 따라 다른 payload 생성
+        const payload = type === 'chat_message' 
+          ? createChatMessagePayload(tokenData.token)
+          : createCompatibilityPayload(tokenData.token);
 
         const result = await admin.messaging().send(payload);
         console.log('✅ 푸시 알림 전송 성공:', result);
