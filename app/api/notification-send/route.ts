@@ -23,7 +23,7 @@ if (!admin.apps.length) {
 
 export async function POST(req: Request) {
   try {
-    const { receiverId, message, senderId, type = 'chat_message', chatRoomId, partnerId, partnerName, compatibilityShareId } = await req.json();
+    const { receiverId, message, senderId, type, chatRoomId, senderName, compatibilityShareId } = await req.json();
 
     if (!receiverId || !message || !senderId) {
       return NextResponse.json(
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log('🔔 푸시 알림 요청:', { receiverId, message, senderId, type });
+    console.log('🔔 푸시 알림 요청:', { receiverId, message, senderId, type, chatRoomId, senderName, compatibilityShareId });
 
     // 수신자의 FCM 토큰 조회
     const { data: tokens, error: tokenError } = await supabase
@@ -49,15 +49,6 @@ export async function POST(req: Request) {
       console.log('⚠️ 수신자의 FCM 토큰이 없습니다:', receiverId);
       return NextResponse.json({ error: '수신자의 FCM 토큰이 없습니다' }, { status: 404 });
     }
-
-    // 발신자 정보 조회 (알림에 표시할 이름)
-    const { data: senderData, error: senderError } = await supabase
-      .from('user_profiles')
-      .select('nickname')
-      .eq('user_id', senderId)
-      .single();
-
-    const senderName = senderData?.nickname || '사용자';
 
     // 알림 제목과 내용 설정
     let title = '';
@@ -92,10 +83,9 @@ export async function POST(req: Request) {
             receiverId,
             type,
             message,
-            chatRoomId: chatRoomId || null,
-            partnerId: partnerId || null,
-            partnerName: partnerName || null,
-            compatibilityShareId: compatibilityShareId || null,
+            chatRoomId: chatRoomId,
+            senderName: senderName,
+            compatibilityShareId: compatibilityShareId,
           },
           token: tokenData.token,
         };
