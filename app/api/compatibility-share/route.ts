@@ -209,7 +209,7 @@ export async function PATCH(request: NextRequest) {
         updated_at: new Date().toISOString()
       })
       .eq('id', shareId)
-      .select()
+      .select('id, interaction, receiver_id, sender_id, updated_at')
       .single();
 
     if (updateError) {
@@ -224,6 +224,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      receiverId: updateData.receiver_id,
       message: '상호작용 상태가 성공적으로 저장되었습니다.'
     });
 
