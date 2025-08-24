@@ -134,7 +134,7 @@ export async function POST(req: Request) {
             error.code === 'messaging/registration-token-not-registered') {
           console.log('🗑️ 유효하지 않은 토큰 제거:', tokenData.token);
           await supabase
-            .from('fcm_tokens')
+            .from('face_reader_fcm_tokens')
             .delete()
             .eq('token', tokenData.token);
         }
