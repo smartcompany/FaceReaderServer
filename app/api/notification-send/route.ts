@@ -66,6 +66,18 @@ export async function POST(req: Request) {
         title = `${senderName}님이 궁합 결과를 공유했습니다`;
         body = '궁합 분석 결과를 확인해보세요!';
         break;
+      case 'interested':
+        title = `${senderName}님이 보낸 궁합에 흥미를 보였습니다`;
+        body = '궁합 결과를 확인해보세요!';
+        break;
+      case 'chatRequest':
+        title = `${senderName}님이 대화를 요청했습니다`;
+        body = '대화 요청에 응답해주세요!';
+        break;
+      case 'chatAccepted':
+        title = `${senderName}님이 대화를 수락했습니다`;
+        body = '이제 대화를 시작할 수 있습니다!';
+        break;
       default:
         title = `${senderName}님으로부터 알림`;
     }
