@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// 기존 API와 동일한 환경 변수 사용
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+
+// 환경 변수 검증
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('❌ [Withdraw] 환경 변수가 설정되지 않음:', {
+    SUPABASE_URL: SUPABASE_URL ? '설정됨' : '설정되지 않음',
+    SUPABASE_KEY: SUPABASE_KEY ? '설정됨' : '설정되지 않음'
+  });
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export async function POST(request: NextRequest) {
   try {
