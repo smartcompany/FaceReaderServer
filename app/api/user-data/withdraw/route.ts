@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. 궁합 분석 결과 삭제
+    // 2. 궁합 분석 결과 삭제 (보낸 것 + 받은 것 모두)
     const { error: compatibilityError } = await supabase
       .from('compatibility_shares')
       .delete()
-      .eq('sender_id', userId);
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
 
     if (compatibilityError) {
       console.error('❌ [Withdraw] 궁합 분석 결과 삭제 실패:', compatibilityError);
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // 3. FCM 토큰 삭제
     const { error: fcmError } = await supabase
-      .from('fcm_tokens')
+      .from('face_reader_fcm_tokens')
       .delete()
       .eq('user_id', userId);
 
