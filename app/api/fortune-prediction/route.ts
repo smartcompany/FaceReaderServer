@@ -19,10 +19,13 @@ const supabase = createClient(
 );
 
 // 프롬프트 파일 읽기 함수
-async function loadPrompt(language: string): Promise<string> {
+async function loadPrompt(language: string, platform: string): Promise<string> {
   try {
-    const promptPath = join(process.cwd(), 'prompts', 'fortune-prediction.txt');
+    // 🆕 플랫폼에 따라 다른 프롬프트 파일 사용
+    const promptFileName = platform === 'ios' ? 'behavior-analysis.txt' : 'fortune-prediction.txt';
+    const promptPath = join(process.cwd(), 'prompts', promptFileName);
     console.log('프롬프트 파일 경로:', promptPath);
+    console.log('플랫폼:', platform);
     
     const promptContent = await readFile(promptPath, 'utf-8');
     console.log('프롬프트 내용:', promptContent);
@@ -32,7 +35,9 @@ async function loadPrompt(language: string): Promise<string> {
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
     // 기본 프롬프트 반환
-    const basePrompt = '당신은 전문적인 운세 예측가이자 관상학자입니다. 사용자의 얼굴 사진을 분석하여 운세를 예측해주세요.';
+    const basePrompt = platform === 'ios' 
+      ? '당신은 전문적인 행동 분석가입니다. 사용자의 얼굴 사진을 분석하여 행동 경향을 분석해주세요.'
+      : '당신은 전문적인 운세 예측가이자 관상학자입니다. 사용자의 얼굴 사진을 분석하여 운세를 예측해주세요.';
     return getLanguageSpecificPrompt(basePrompt, language);
   }
 }
@@ -85,8 +90,12 @@ export async function POST(request: NextRequest) {
 
     console.log('Supabase 업로드 완료:', publicUrl);
 
+    // 🆕 플랫폼 정보 추출
+    const platform = formData.get('platform') as string || 'android';
+    console.log('요청 플랫폼:', platform);
+    
     // 프롬프트 로드
-    const prompt = await loadPrompt(language);
+    const prompt = await loadPrompt(language, platform);
     
     // OpenAI API 호출
     const response = await openai.chat.completions.create({
