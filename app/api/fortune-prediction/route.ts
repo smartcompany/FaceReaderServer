@@ -147,11 +147,16 @@ export async function POST(request: NextRequest) {
       
       parsedFortune = JSON.parse(cleanJsonString);
       
-      // 필수 필드 검증
-      const requiredFields = [
-        'overall_score', 'wealth_fortune', 'health_fortune', 'love_fortune',
-        'career_fortune', 'luck_improvement', 'precautions'
-      ];
+      // 🆕 플랫폼에 따라 다른 필수 필드 검증
+      const requiredFields = platform === 'ios' 
+        ? [
+            'overall_score', 'communication_style', 'decision_making',
+            'relationship_behavior', 'stress_response', 'growth_suggestions', 'cautions'
+          ]
+        : [
+            'overall_score', 'wealth_fortune', 'health_fortune', 'love_fortune',
+            'career_fortune', 'luck_improvement', 'precautions'
+          ];
       
       const missingFields = requiredFields.filter(field => 
         !parsedFortune[field]
@@ -159,16 +164,28 @@ export async function POST(request: NextRequest) {
       
       if (missingFields.length > 0) {
         console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
-        // 기본 구조로 재구성
-        parsedFortune = {
-          overall_score: 0,
-          wealth_fortune: '운세 예측 결과를 확인할 수 없습니다.',
-          health_fortune: '운세 예측 결과를 확인할 수 없습니다.',
-          love_fortune: '운세 예측 결과를 확인할 수 없습니다.',
-          career_fortune: '운세 예측 결과를 확인할 수 없습니다.',
-          luck_improvement: '운세 예측 결과를 확인할 수 없습니다.',
-          precautions: '운세 예측 결과를 확인할 수 없습니다.'
-        };
+        // 🆕 플랫폼에 따라 다른 기본 구조로 재구성
+        if (platform === 'ios') {
+          parsedFortune = {
+            overall_score: 0,
+            communication_style: '행동 분석 결과를 확인할 수 없습니다.',
+            decision_making: '행동 분석 결과를 확인할 수 없습니다.',
+            relationship_behavior: '행동 분석 결과를 확인할 수 없습니다.',
+            stress_response: '행동 분석 결과를 확인할 수 없습니다.',
+            growth_suggestions: '행동 분석 결과를 확인할 수 없습니다.',
+            cautions: '행동 분석 결과를 확인할 수 없습니다.'
+          };
+        } else {
+          parsedFortune = {
+            overall_score: 0,
+            wealth_fortune: '운세 예측 결과를 확인할 수 없습니다.',
+            health_fortune: '운세 예측 결과를 확인할 수 없습니다.',
+            love_fortune: '운세 예측 결과를 확인할 수 없습니다.',
+            career_fortune: '운세 예측 결과를 확인할 수 없습니다.',
+            luck_improvement: '운세 예측 결과를 확인할 수 없습니다.',
+            precautions: '운세 예측 결과를 확인할 수 없습니다.'
+          };
+        }
       }
       
     } catch (parseError) {
