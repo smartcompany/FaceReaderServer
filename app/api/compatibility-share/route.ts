@@ -26,14 +26,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 중복 공유 체크
-    const { data: existingShare } = await supabase
+    console.log('🔍 [POST] 중복 체크 시작');
+    console.log('🔍 [POST] senderId:', senderId);
+    console.log('🔍 [POST] receiverId:', receiverId);
+
+    const { data: existingShare, error: checkError } = await supabase
       .from('compatibility_shares')
       .select('id')
       .eq('sender_id', senderId)
       .eq('receiver_id', receiverId)
       .maybeSingle();
 
+    console.log('🔍 [POST] 중복 체크 결과 - existingShare:', existingShare);
+    console.log('🔍 [POST] 중복 체크 결과 - checkError:', checkError);
+    console.log('🔍 [POST] existingShare 타입:', typeof existingShare);
+    console.log('🔍 [POST] existingShare 값:', existingShare);
+
     if (existingShare) {
+      console.log('🔍 [POST] 중복 발견! 기존 공유 ID:', existingShare.id);
       return NextResponse.json(
         { 
           error: 'DUPLICATE_SHARE',
@@ -41,6 +51,8 @@ export async function POST(request: NextRequest) {
         },
         { status: 409 }  // Conflict
       );
+    } else {
+      console.log('🔍 [POST] 중복 없음, 새로 공유 진행');
     }
 
     // 궁합 결과를 Supabase에 저장
