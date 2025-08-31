@@ -19,10 +19,22 @@ const supabase = createClient(
 );
 
 // 프롬프트 파일 읽기 함수
-async function loadPrompt(language: string): Promise<string> {
+async function loadPrompt(language: string, platform?: string): Promise<string> {
   try {
-    const promptPath = join(process.cwd(), 'prompts', 'compatibility-analysis.txt');
+    let promptFileName: string;
+    let basePrompt: string;
+    
+    if (platform === 'ios') {
+      promptFileName = 'affinity-analysis.txt';
+      basePrompt = '당신은 전문적인 행동 분석 전문가이자 친화성 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 친화성을 분석해주세요.';
+    } else {
+      promptFileName = 'compatibility-analysis.txt';
+      basePrompt = '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 분석해주세요.';
+    }
+    
+    const promptPath = join(process.cwd(), 'prompts', promptFileName);
     console.log('프롬프트 파일 경로:', promptPath);
+    console.log('플랫폼:', platform);
     
     const promptContent = await readFile(promptPath, 'utf-8');
     console.log('프롬프트 내용:', promptContent);
@@ -32,8 +44,8 @@ async function loadPrompt(language: string): Promise<string> {
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
     // 기본 프롬프트 반환
-    const basePrompt = '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 분석해주세요.';
-    return getLanguageSpecificPrompt(basePrompt, language);
+    const fallbackPrompt = '당신은 전문적인 분석가입니다. 두 사람의 얼굴 사진을 분석하여 관계를 분석해주세요.';
+    return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
 }
 
@@ -48,6 +60,9 @@ export async function POST(request: NextRequest) {
     const image2File = formData.get('image2') as File | null;
     const image1Url = formData.get('image1Url') as string | null;
     const image2Url = formData.get('image2Url') as string | null;
+    const platform = formData.get('platform') as string | null;
+    
+    console.log('요청 플랫폼:', platform);
     
     let publicUrl1: string;
     let publicUrl2: string;
@@ -132,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 프롬프트 로드
-    const prompt = await loadPrompt(language);
+    const prompt = await loadPrompt(language, platform);
     
     // OpenAI API 호출 (두 이미지 모두 포함)
     const response = await openai.chat.completions.create({
