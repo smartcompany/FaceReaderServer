@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('sender_id', senderId)
       .eq('receiver_id', receiverId)
-      .single();
+      .maybeSingle();
 
     if (existingShare) {
       return NextResponse.json(
