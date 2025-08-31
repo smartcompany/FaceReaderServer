@@ -30,15 +30,15 @@ export async function POST(request: NextRequest) {
     console.log('🔍 [POST] senderId:', senderId);
     console.log('🔍 [POST] receiverId:', receiverId);
 
-    const { data: existingShare, error: checkError } = await supabase
+    const { data: existingShare } = await supabase
       .from('compatibility_shares')
       .select('id')
       .eq('sender_id', senderId)
       .eq('receiver_id', receiverId)
-      .maybeSingle();
+      .limit(1)  // ← 첫 번째 결과만 가져옴
+      .single();  // ← 이제 안전함
 
     console.log('🔍 [POST] 중복 체크 결과 - existingShare:', existingShare);
-    console.log('🔍 [POST] 중복 체크 결과 - checkError:', checkError);
     console.log('🔍 [POST] existingShare 타입:', typeof existingShare);
     console.log('🔍 [POST] existingShare 값:', existingShare);
 
