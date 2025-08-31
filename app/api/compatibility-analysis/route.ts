@@ -205,21 +205,37 @@ export async function POST(request: NextRequest) {
       
       parsedCompatibility = JSON.parse(cleanJsonString);
       
-      // 필수 필드 검증
-      const requiredFields = [
-        'overall_score', 'personality_compatibility', 'emotional_compatibility',
-        'social_compatibility', 'communication_compatibility', 'long_term_prospects',
-        'improvement_suggestions', 'precautions'
-      ];
+      // 필수 필드 검증 (플랫폼별로 다르게)
+      let requiredFields: string[];
+      let defaultStructure: any;
       
-      const missingFields = requiredFields.filter(field => 
-        !parsedCompatibility[field]
-      );
-      
-      if (missingFields.length > 0) {
-        console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
-        // 기본 구조로 재구성
-        parsedCompatibility = {
+      if (platform === 'ios') {
+        // iOS: 새로운 필드들 체크
+        requiredFields = [
+          'overall_score', 'personality_alignment', 'emotional_dynamics',
+          'social_interaction', 'communication_style', 'collaboration_potential',
+          'growth_suggestions', 'cautions'
+        ];
+        
+        defaultStructure = {
+          overall_score: 0,
+          personality_alignment: '분석 결과를 확인할 수 없습니다.',
+          emotional_dynamics: '분석 결과를 확인할 수 없습니다.',
+          social_interaction: '분석 결과를 확인할 수 없습니다.',
+          communication_style: '분석 결과를 확인할 수 없습니다.',
+          collaboration_potential: '분석 결과를 확인할 수 없습니다.',
+          growth_suggestions: '분석 결과를 확인할 수 없습니다.',
+          cautions: '분석 결과를 확인할 수 없습니다.'
+        };
+      } else {
+        // Android: 기존 필드들 체크
+        requiredFields = [
+          'overall_score', 'personality_compatibility', 'emotional_compatibility',
+          'social_compatibility', 'communication_compatibility', 'long_term_prospects',
+          'improvement_suggestions', 'precautions'
+        ];
+        
+        defaultStructure = {
           overall_score: 0,
           personality_compatibility: '분석 결과를 확인할 수 없습니다.',
           emotional_compatibility: '분석 결과를 확인할 수 없습니다.',
@@ -229,6 +245,17 @@ export async function POST(request: NextRequest) {
           improvement_suggestions: '분석 결과를 확인할 수 없습니다.',
           precautions: '분석 결과를 확인할 수 없습니다.'
         };
+      }
+      
+      const missingFields = requiredFields.filter(field => 
+        !parsedCompatibility[field]
+      );
+      
+      if (missingFields.length > 0) {
+        console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
+        console.log('플랫폼:', platform);
+        // 기본 구조로 재구성
+        parsedCompatibility = defaultStructure;
       }
       
     } catch (parseError) {
