@@ -25,6 +25,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 중복 공유 체크
+    const { data: existingShare } = await supabase
+      .from('compatibility_shares')
+      .select('id')
+      .eq('sender_id', senderId)
+      .eq('receiver_id', receiverId)
+      .single();
+
+    if (existingShare) {
+      return NextResponse.json(
+        { 
+          error: 'DUPLICATE_SHARE',
+          message: '이미 공유한 사용자입니다.'
+        },
+        { status: 409 }  // Conflict
+      );
+    }
+
     // 궁합 결과를 Supabase에 저장
     const { data: shareData, error: shareError } = await supabase
       .from('compatibility_shares')
