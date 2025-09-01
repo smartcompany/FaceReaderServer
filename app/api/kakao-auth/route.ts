@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 const admin = require('firebase-admin');
 
-admin.initializeApp();
+// Firebase Admin SDK가 이미 초기화되었는지 확인
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,9 +64,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ customToken });
     
   } catch (e) {
-    console.error(e);
+    console.error('Kakao Auth Error:', e);
+    console.error('Error stack:', e.stack);
     return NextResponse.json(
-      { error: 'internal' },
+      { error: 'internal', details: e.message },
       { status: 500 }
     );
   }
