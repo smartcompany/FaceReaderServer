@@ -5,17 +5,17 @@ admin.initializeApp();
 
 export async function POST(request: NextRequest) {
   try {
-    const { accessToken } = await request.json();
-    if (!accessToken) {
+    const { kakaoAccessToken } = await request.json();
+    if (!kakaoAccessToken) {
       return NextResponse.json(
-        { error: 'missing accessToken' },
+        { error: 'missing kakaoAccessToken' },
         { status: 400 }
       );
     }
 
     // 1) 토큰 정보 확인 (앱 매칭/만료)
     const infoResp = await fetch('https://kapi.kakao.com/v1/user/access_token_info', {
-      headers: { Authorization: `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${kakaoAccessToken}` }
     });
     
     if (!infoResp.ok) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // 2) 사용자 정보 조회
     const meResp = await fetch('https://kapi.kakao.com/v2/user/me', {
-      headers: { Authorization: `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${kakaoAccessToken}` }
     });
     
     if (!meResp.ok) {
