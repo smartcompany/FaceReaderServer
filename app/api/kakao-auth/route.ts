@@ -73,8 +73,9 @@ export async function POST(request: NextRequest) {
     const me = await meResp.json();
     const kakaoId = String(me.id);
 
-    // 3) Firebase 커스텀 토큰 생성 (임시 해결)
+    // 3) Firebase 커스텀 토큰 생성
     const uid = `kakao:${kakaoId}`;
+    console.log('🔍 [Kakao Auth] Firebase Custom Token 생성 시작 - UID:', uid);
     
     try {
       const customToken = await admin.auth().createCustomToken(uid, {
@@ -82,15 +83,19 @@ export async function POST(request: NextRequest) {
         kakaoId,
       });
       
-      return NextResponse.json({ customToken });
-    } catch (firebaseError) {
-      console.error('Firebase Custom Token 생성 실패:', firebaseError);
-      
-      // 임시로 성공 응답 반환 (Firebase 설정 완료 후 제거)
+      console.log('✅ [Kakao Auth] Firebase Custom Token 생성 성공');
       return NextResponse.json({ 
-        customToken: 'temp_token_for_testing',
-        message: 'Firebase 설정 필요 - 임시 토큰'
+        success: true,
+        customToken: customToken 
       });
+    } catch (firebaseError) {
+      console.error('❌ [Kakao Auth] Firebase Custom Token 생성 실패:', firebaseError);
+      
+      return NextResponse.json({ 
+        success: false,
+        error: 'Firebase Custom Token 생성 실패',
+        details: firebaseError.message
+      }, { status: 500 });
     }
     
   } catch (e) {
