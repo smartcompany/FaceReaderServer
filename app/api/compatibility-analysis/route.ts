@@ -24,10 +24,10 @@ async function loadPrompt(language: string, platform?: string): Promise<string> 
     let promptFileName: string;
     let basePrompt: string;
     
-    promptFileName = 'compatibility-analysis.txt';
+    promptFileName = 'compatibility-analysis_normal.txt';
     basePrompt = '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 분석해주세요.';
     
-    const promptPath = join(process.cwd(), 'prompts', 'compatibility-analysis_wizard.txt');
+    const promptPath = join(process.cwd(), 'prompts', promptFileName);
     console.log('프롬프트 파일 경로:', promptPath);
     console.log('플랫폼:', platform);
     
