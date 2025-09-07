@@ -1,0 +1,45 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function shouldUseDummyData(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('face_reader_settings')
+      .select('data')
+      .eq('key', 'use_dummy')
+      .single();
+
+    if (error) {
+      console.log('설정 조회 실패, 기본값(false) 사용:', error.message);
+      return false;
+    }
+
+    const settings = data?.data as { use_dummy?: boolean };
+    return settings?.use_dummy === true;
+  } catch (error) {
+    console.log('설정 조회 중 오류, 기본값(false) 사용:', error);
+    return false;
+  }
+}
+
+export async function loadDummyData(filename: string): Promise<any> {
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    const filePath = path.join(process.cwd(), 'dummy-data', filename);
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    
+    return JSON.parse(fileContent);
+  } catch (error) {
+    console.error(`더미 데이터 로드 실패 (${filename}):`, error);
+    return {
+      success: false,
+      error: '더미 데이터를 불러올 수 없습니다.'
+    };
+  }
+}

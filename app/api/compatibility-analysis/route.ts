@@ -4,6 +4,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
+import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 
 const STORAGE_BUCKET = "face-reader";
 
@@ -46,6 +47,14 @@ async function loadPrompt(language: string, platform?: string): Promise<string> 
 
 export async function POST(request: NextRequest) {
   try {
+    // 더미 데이터 사용 여부 확인
+    const useDummy = await shouldUseDummyData();
+    if (useDummy) {
+      console.log('더미 데이터 모드로 궁합 분석 실행');
+      const dummyData = await loadDummyData('compatibility-analysis.json');
+      return NextResponse.json(dummyData);
+    }
+
     // 언어 정보 추출
     const language = getLanguageFromHeaders(request);
     console.log('요청 언어:', language);
@@ -200,47 +209,23 @@ export async function POST(request: NextRequest) {
       
       parsedCompatibility = JSON.parse(cleanJsonString);
       
-      // 필수 필드 검증 (플랫폼별로 다르게)
-      let requiredFields: string[];
-      let defaultStructure: any;
+      // 필수 필드 검증
+      const requiredFields = [
+        'overall_score', 'personality_compatibility', 'emotional_compatibility',
+        'social_compatibility', 'communication_compatibility', 'long_term_prospects',
+        'improvement_suggestions', 'precautions'
+      ];
       
-      if (platform === 'ios') {
-        // iOS: 새로운 필드들 체크
-        requiredFields = [
-          'overall_score', 'personality_alignment', 'emotional_dynamics',
-          'social_interaction', 'communication_style', 'collaboration_potential',
-          'growth_suggestions', 'cautions'
-        ];
-        
-        defaultStructure = {
-          overall_score: 0,
-          personality_alignment: '분석 결과를 확인할 수 없습니다.',
-          emotional_dynamics: '분석 결과를 확인할 수 없습니다.',
-          social_interaction: '분석 결과를 확인할 수 없습니다.',
-          communication_style: '분석 결과를 확인할 수 없습니다.',
-          collaboration_potential: '분석 결과를 확인할 수 없습니다.',
-          growth_suggestions: '분석 결과를 확인할 수 없습니다.',
-          cautions: '분석 결과를 확인할 수 없습니다.'
-        };
-      } else {
-        // Android: 기존 필드들 체크
-        requiredFields = [
-          'overall_score', 'personality_compatibility', 'emotional_compatibility',
-          'social_compatibility', 'communication_compatibility', 'long_term_prospects',
-          'improvement_suggestions', 'precautions'
-        ];
-        
-        defaultStructure = {
-          overall_score: 0,
-          personality_compatibility: '분석 결과를 확인할 수 없습니다.',
-          emotional_compatibility: '분석 결과를 확인할 수 없습니다.',
-          social_compatibility: '분석 결과를 확인할 수 없습니다.',
-          communication_compatibility: '분석 결과를 확인할 수 없습니다.',
-          long_term_prospects: '분석 결과를 확인할 수 없습니다.',
-          improvement_suggestions: '분석 결과를 확인할 수 없습니다.',
-          precautions: '분석 결과를 확인할 수 없습니다.'
-        };
-      }
+      const defaultStructure = {
+        overall_score: 0,
+        personality_compatibility: '분석 결과를 확인할 수 없습니다.',
+        emotional_compatibility: '분석 결과를 확인할 수 없습니다.',
+        social_compatibility: '분석 결과를 확인할 수 없습니다.',
+        communication_compatibility: '분석 결과를 확인할 수 없습니다.',
+        long_term_prospects: '분석 결과를 확인할 수 없습니다.',
+        improvement_suggestions: '분석 결과를 확인할 수 없습니다.',
+        precautions: '분석 결과를 확인할 수 없습니다.'
+      };
       
       const missingFields = requiredFields.filter(field => 
         !parsedCompatibility[field]

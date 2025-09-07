@@ -4,6 +4,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
+import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
  
 const STORAGE_BUCKET = "rate-history";
 
@@ -39,6 +40,14 @@ async function loadPrompt(language: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
+    // 더미 데이터 사용 여부 확인
+    const useDummy = await shouldUseDummyData();
+    if (useDummy) {
+      console.log('더미 데이터 모드로 성격 분석 실행');
+      const dummyData = await loadDummyData('personality-analysis.json');
+      return NextResponse.json(dummyData);
+    }
+
     // 언어 정보 추출
     const language = getLanguageFromHeaders(request);
     console.log('요청 언어:', language);
