@@ -13,11 +13,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// 환경 변수 설정
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+
 // Supabase 클라이언트 초기화
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!
-);
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 프롬프트 파일 읽기 함수
 async function loadPrompt(language: string): Promise<string> {
