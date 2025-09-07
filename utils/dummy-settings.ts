@@ -33,12 +33,21 @@ export async function shouldUseDummyData(): Promise<boolean> {
 
 export async function loadDummyData(filename: string): Promise<any> {
   try {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    
-    const filePath = path.join(process.cwd(), 'dummy-data', filename);
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    
+    // Supabase Storage에서 더미 데이터 가져오기
+    const { data, error } = await supabase.storage
+      .from('face-reader')
+      .download(`dummy-data/${filename}`);
+
+    if (error) {
+      console.error(`Supabase Storage에서 더미 데이터 로드 실패 (${filename}):`, error);
+      return {
+        success: false,
+        error: '더미 데이터를 불러올 수 없습니다.'
+      };
+    }
+
+    // Blob을 텍스트로 변환
+    const fileContent = await data.text();
     return JSON.parse(fileContent);
   } catch (error) {
     console.error(`더미 데이터 로드 실패 (${filename}):`, error);
