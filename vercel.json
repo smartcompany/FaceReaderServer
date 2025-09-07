@@ -1,5 +1,10 @@
 {
     "regions": ["sin1"],
+    "functions": {
+        "app/api/**/*.ts": {
+            "includeFiles": "dummy-data/**"
+        }
+    },
     "headers": [
         {
             "source": "/api/(.*)",
