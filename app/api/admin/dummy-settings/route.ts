@@ -14,8 +14,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('face_reader_settings')
       .select('*')
-      .eq('key', 'use_dummy')
-      .single();
+      .limit(1);
 
     if (error) {
       return NextResponse.json(

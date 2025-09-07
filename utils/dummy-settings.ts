@@ -11,15 +11,19 @@ export async function shouldUseDummyData(): Promise<boolean> {
     const { data, error } = await supabase
       .from('face_reader_settings')
       .select('data')
-      .eq('key', 'use_dummy')
-      .single();
+      .limit(1);
 
     if (error) {
       console.log('설정 조회 실패, 기본값(false) 사용:', error.message);
       return false;
     }
 
-    const settings = data?.data as { use_dummy?: boolean };
+    if (!data || data.length === 0) {
+      console.log('설정 데이터가 없음, 기본값(false) 사용');
+      return false;
+    }
+
+    const settings = data[0]?.data as { use_dummy?: boolean };
     return settings?.use_dummy === true;
   } catch (error) {
     console.log('설정 조회 중 오류, 기본값(false) 사용:', error);
