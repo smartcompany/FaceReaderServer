@@ -22,23 +22,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 프롬프트 파일 읽기 함수
 async function loadPrompt(language: string, platform: string): Promise<string> {
-  try {
-    const promptFileName = 'fortune-prediction.txt';
-    const promptPath = join(process.cwd(), 'prompts', promptFileName);
-    console.log('프롬프트 파일 경로:', promptPath);
-    console.log('플랫폼:', platform);
-    
-    const promptContent = await readFile(promptPath, 'utf-8');
-    console.log('프롬프트 내용:', promptContent);
-    
-    // 언어별 프롬프트 생성
-    return getLanguageSpecificPrompt(promptContent, language);
-  } catch (error) {
-    console.error('프롬프트 파일 읽기 오류:', error);
-    // 기본 프롬프트 반환
-    const basePrompt = '당신은 전문적인 운세 예측가이자 관상학자입니다. 사용자의 얼굴 사진을 분석하여 운세를 예측해주세요.';
-    return getLanguageSpecificPrompt(basePrompt, language);
+  // Supabase Storage에서 프롬프트 파일 가져오기
+  const { data, error } = await supabase.storage
+    .from('face-reader')
+    .download('prompts/fortune-prediction.txt');
+
+  if (error) {
+    console.error('Supabase Storage에서 프롬프트 파일 읽기 오류:', error);
+    throw new Error(`프롬프트 파일을 불러올 수 없습니다: ${error.message}`);
   }
+
+  const promptContent = await data.text();
+  console.log('프롬프트 내용:', promptContent);
+  console.log('플랫폼:', platform);
+  
+  // 언어별 프롬프트 생성
+  return getLanguageSpecificPrompt(promptContent, language);
 }
 
 export async function POST(request: NextRequest) {

@@ -22,21 +22,21 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 프롬프트 파일 읽기 함수
 async function loadPrompt(language: string): Promise<string> {
-  try {
-    const promptPath = join(process.cwd(), 'prompts', 'personality-analysis.txt');
-    console.log('프롬프트 파일 경로:', promptPath);
-    
-    const promptContent = await readFile(promptPath, 'utf-8');
-    console.log('프롬프트 내용:', promptContent);
-    
-    // 언어별 프롬프트 생성
-    return getLanguageSpecificPrompt(promptContent, language);
-  } catch (error) {
-    console.error('프롬프트 파일 읽기 오류:', error);
-    // 기본 프롬프트 반환
-    const basePrompt = '당신은 전문적인 관상학자이자 성격 분석 전문가입니다. 사용자가 제공한 얼굴 사진을 분석하여 성격 특성, 강점과 약점, 대인관계 스타일, 발전 방향, 매력 포인트를 분석해주세요.';
-    return getLanguageSpecificPrompt(basePrompt, language);
+  // Supabase Storage에서 프롬프트 파일 가져오기
+  const { data, error } = await supabase.storage
+    .from('face-reader')
+    .download('prompts/personality-analysis.txt');
+
+  if (error) {
+    console.error('Supabase Storage에서 프롬프트 파일 읽기 오류:', error);
+    throw new Error(`프롬프트 파일을 불러올 수 없습니다: ${error.message}`);
   }
+
+  const promptContent = await data.text();
+  console.log('프롬프트 내용:', promptContent);
+  
+  // 언어별 프롬프트 생성
+  return getLanguageSpecificPrompt(promptContent, language);
 }
 
 export async function POST(request: NextRequest) {
