@@ -14,11 +14,19 @@ const openai = new OpenAI({
 });
 
 // 환경 변수 설정
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY;
+
+// 환경 변수 검증
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('❌ [Compatibility] 환경 변수가 설정되지 않음:', {
+    SUPABASE_URL: SUPABASE_URL ? '설정됨' : '설정되지 않음',
+    SUPABASE_KEY: SUPABASE_KEY ? '설정됨' : '설정되지 않음'
+  });
+}
 
 // Supabase 클라이언트 초기화
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
 // 프롬프트 파일 읽기 함수
 async function loadPrompt(language: string, platform?: string): Promise<string> {
