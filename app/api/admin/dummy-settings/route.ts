@@ -25,7 +25,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: data?.data || { use_dummy: false }
+      data: data?.[0]?.data || { use_dummy: false }
     });
   } catch (error) {
     return NextResponse.json(
