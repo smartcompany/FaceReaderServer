@@ -1,12 +1,14 @@
 {
     "ads": {
         "ios":"ca-app-pub-3940256099942544/6978759866",
-        "android":"ca-app-pub-3940256099942544/5354046379",
+        "android":"ca-app-pub-5520596727761259/9325983140",
+        "androidType": "android_Reward",
         "ref": {
             "iosTest": "ca-app-pub-3940256099942544/6978759866",
             "androidTest": "ca-app-pub-3940256099942544/5354046379",
             "ios":"ca-app-pub-5520596727761259/2503600098",
-            "android":"ca-app-pub-5520596727761259/9325983140"
+            "android_RewardInitial":"ca-app-pub-5520596727761259/9325983140",
+            "android_Reward": "ca-app-pub-5520596727761259/3465595849"
         }
     }
 }

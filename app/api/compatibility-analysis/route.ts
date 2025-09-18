@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
@@ -28,20 +26,25 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 // Supabase 클라이언트 초기화
 const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
-// 프롬프트 파일 읽기 함수
+// 프롬프트 파일 읽기 함수 (Supabase에서 읽기)
 async function loadPrompt(language: string, platform?: string): Promise<string> {
   try {
-    let promptFileName: string;
-    let basePrompt: string;
+    const promptFileName = 'compatibility-analysis_normal.txt';
     
-    promptFileName = 'compatibility-analysis_normal.txt';
-    basePrompt = '당신은 전문적인 관상학자이자 궁합 분석 전문가입니다. 두 사람의 얼굴 사진을 분석하여 궁합을 분석해주세요.';
-    
-    const promptPath = join(process.cwd(), 'prompts', promptFileName);
-    console.log('프롬프트 파일 경로:', promptPath);
+    console.log('Supabase에서 프롬프트 파일 읽기:', promptFileName);
     console.log('플랫폼:', platform);
     
-    const promptContent = await readFile(promptPath, 'utf-8');
+    // Supabase Storage에서 프롬프트 파일 읽기
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .download(`prompts/${promptFileName}`);
+    
+    if (error) {
+      console.error('Supabase 프롬프트 파일 읽기 오류:', error);
+      throw new Error(`프롬프트 파일을 찾을 수 없습니다: ${promptFileName}`);
+    }
+    
+    const promptContent = await data.text();
     console.log('프롬프트 내용:', promptContent);
     
     // 언어별 프롬프트 생성
