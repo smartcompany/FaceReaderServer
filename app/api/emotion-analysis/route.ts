@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     // 더미 데이터 사용 여부 확인
     const useDummy = await shouldUseDummyData();
     if (useDummy) {
-      console.log('더미 데이터 모드로 표정 분석 실행');
+      console.log('더미 데이터 모드로 감정 분석 실행');
       const dummyData = await loadDummyData('emotion-analysis.json');
       return NextResponse.json(dummyData);
     }
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ [Emotion] 표정 분석 요청 수신');
+    console.log('✅ [Emotion] 감정 분석 요청 수신');
     console.log('📄 [Emotion] 이미지 파일명:', image.name);
     console.log('📏 [Emotion] 이미지 크기:', image.size);
     console.log('🌍 [Emotion] 언어:', language);
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ [Emotion] 표정 분석 완료');
+    console.log('✅ [Emotion] 감정 분석 완료');
     console.log('📊 [Emotion] 분석 결과:', emotionData);
 
     return NextResponse.json({
@@ -148,9 +148,9 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ [Emotion] 표정 분석 실패:', error);
+    console.error('❌ [Emotion] 감정 분석 실패:', error);
     return NextResponse.json(
-      { success: false, error: '표정 분석 중 오류가 발생했습니다.' },
+      { success: false, error: '감정 분석 중 오류가 발생했습니다.' },
       { status: 500 }
     );
   }

@@ -8,7 +8,7 @@
 출력은 반드시 다음 JSON 형식을 따릅니다:
 
 {
-  "primary_emotion": "기쁨|슬픔|분노|놀람|두려움|혐오|중성 중 하나",
+  "primary_emotion": "happy|sad|angry|surprise|fear|disgust|neutral 중 하나 (영문으로)",
   "emotion_score": "0~100 사이 숫자",
   "emotion_description": "현재 감정 상태에 대한 창작적 해석",
   "mood_analysis": "전반적인 기분과 컨디션에 대한 창작적 분석",
