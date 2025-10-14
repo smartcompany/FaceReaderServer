@@ -64,6 +64,7 @@ export async function POST(req: Request) {
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('face-reader')
           .upload(fileName, photoFile, {
+            contentType: photoFile.type,
             cacheControl: '3600',
             upsert: false
           });
