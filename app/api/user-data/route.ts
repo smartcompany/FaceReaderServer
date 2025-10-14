@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import convert from 'heic-convert';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
@@ -8,6 +9,30 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // 간단한 고유 ID 생성 함수
 function generateUniqueId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+// HEIC 파일인지 확인하는 함수
+function isHEICBuffer(buffer: Buffer): boolean {
+  // HEIC 파일은 'ftyp' 시그니처를 가지며, 그 뒤에 'heic' 또는 'mif1'이 옴
+  const signature = buffer.toString('ascii', 4, 12);
+  return signature.includes('heic') || signature.includes('mif1');
+}
+
+// HEIC를 JPEG로 변환하는 함수
+async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
+  try {
+    console.log('🔄 HEIC 파일 감지, JPEG로 변환 중...');
+    const outputBuffer = await convert({
+      buffer: buffer,
+      format: 'JPEG',
+      quality: 0.9
+    });
+    console.log('✅ HEIC → JPEG 변환 완료');
+    return Buffer.from(outputBuffer);
+  } catch (error) {
+    console.error('❌ HEIC 변환 실패:', error);
+    throw new Error('HEIC 파일 변환에 실패했습니다.');
+  }
 }
 
 export async function POST(req: Request) {
@@ -56,15 +81,28 @@ export async function POST(req: Request) {
       try {
         console.log('이미지 파일 업로드 시작:', photoFile.name, photoFile.size);
         
-        // 파일 확장자 추출
-        const fileExtension = photoFile.name.split('.').pop();
+        // 파일을 버퍼로 변환
+        const arrayBuffer = await photoFile.arrayBuffer();
+        let buffer = Buffer.from(arrayBuffer);
+        let contentType = photoFile.type;
+        let fileExtension = photoFile.name.split('.').pop();
+        
+        // HEIC 파일인지 확인하고 변환
+        if (isHEICBuffer(buffer)) {
+          console.log('📸 HEIC 파일 감지됨, JPEG로 변환 시작');
+          buffer = await convertHEICToJPEG(buffer);
+          contentType = 'image/jpeg';
+          fileExtension = 'jpg';
+          console.log('✅ HEIC → JPEG 변환 완료');
+        }
+        
         const fileName = `profiles/${userId}_${generateUniqueId()}.${fileExtension}`;
         
         // Supabase Storage에 업로드
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('face-reader')
-          .upload(fileName, photoFile, {
-            contentType: photoFile.type,
+          .upload(fileName, buffer, {
+            contentType: contentType,
             cacheControl: '3600',
             upsert: false
           });

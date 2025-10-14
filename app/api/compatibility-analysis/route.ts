@@ -3,8 +3,33 @@ import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
+import convert from 'heic-convert';
 
 const STORAGE_BUCKET = "face-reader";
+
+// HEIC 파일인지 확인하는 함수
+function isHEICBuffer(buffer: Buffer): boolean {
+  // HEIC 파일은 'ftyp' 시그니처를 가지며, 그 뒤에 'heic' 또는 'mif1'이 옴
+  const signature = buffer.toString('ascii', 4, 12);
+  return signature.includes('heic') || signature.includes('mif1');
+}
+
+// HEIC를 JPEG로 변환하는 함수
+async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
+  try {
+    console.log('🔄 HEIC 파일 감지, JPEG로 변환 중...');
+    const outputBuffer = await convert({
+      buffer: buffer,
+      format: 'JPEG',
+      quality: 0.9
+    });
+    console.log('✅ HEIC → JPEG 변환 완료');
+    return Buffer.from(outputBuffer);
+  } catch (error) {
+    console.error('❌ HEIC 변환 실패:', error);
+    throw new Error('HEIC 파일 변환에 실패했습니다.');
+  }
+}
 
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
@@ -99,18 +124,38 @@ export async function POST(request: NextRequest) {
 
       // 첫 번째 이미지 파일을 버퍼로 변환
       const bytes1 = await image1File.arrayBuffer();
-      const buffer1 = Buffer.from(bytes1);
+      let buffer1 = Buffer.from(bytes1);
+      let contentType1 = image1File.type;
+      let fileExt1 = image1File.name.split('.').pop();
 
       // 두 번째 이미지 파일을 버퍼로 변환
       const bytes2 = await image2File.arrayBuffer();
-      const buffer2 = Buffer.from(bytes2);
+      let buffer2 = Buffer.from(bytes2);
+      let contentType2 = image2File.type;
+      let fileExt2 = image2File.name.split('.').pop();
+
+      // 첫 번째 이미지가 HEIC인지 확인하고 변환
+      if (isHEICBuffer(buffer1)) {
+        console.log('📸 첫 번째 이미지가 HEIC 형식, JPEG로 변환 시작');
+        buffer1 = await convertHEICToJPEG(buffer1);
+        contentType1 = 'image/jpeg';
+        fileExt1 = 'jpg';
+      }
+
+      // 두 번째 이미지가 HEIC인지 확인하고 변환
+      if (isHEICBuffer(buffer2)) {
+        console.log('📸 두 번째 이미지가 HEIC 형식, JPEG로 변환 시작');
+        buffer2 = await convertHEICToJPEG(buffer2);
+        contentType2 = 'image/jpeg';
+        fileExt2 = 'jpg';
+      }
 
       // Supabase Storage에 첫 번째 이미지 업로드
-      const fileName1 = `compatibility-analysis/${Date.now()}-person1-${image1File.name}`;
+      const fileName1 = `compatibility-analysis/${Date.now()}-person1.${fileExt1}`;
       const { data: uploadData1, error: uploadError1 } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(fileName1, buffer1, {
-          contentType: image1File.type,
+          contentType: contentType1,
           cacheControl: '3600',
           upsert: false
         });
@@ -124,11 +169,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Supabase Storage에 두 번째 이미지 업로드
-      const fileName2 = `compatibility-analysis/${Date.now()}-person2-${image2File.name}`;
+      const fileName2 = `compatibility-analysis/${Date.now()}-person2.${fileExt2}`;
       const { data: uploadData2, error: uploadError2 } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(fileName2, buffer2, {
-          contentType: image2File.type,
+          contentType: contentType2,
           cacheControl: '3600',
           upsert: false
         });

@@ -5,8 +5,32 @@ import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
+import convert from 'heic-convert';
  
 const STORAGE_BUCKET = "rate-history";
+
+// HEIC 파일인지 확인하는 함수
+function isHEICBuffer(buffer: Buffer): boolean {
+  const signature = buffer.toString('ascii', 4, 12);
+  return signature.includes('heic') || signature.includes('mif1');
+}
+
+// HEIC를 JPEG로 변환하는 함수
+async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
+  try {
+    console.log('🔄 HEIC 파일 감지, JPEG로 변환 중...');
+    const outputBuffer = await convert({
+      buffer: buffer,
+      format: 'JPEG',
+      quality: 0.9
+    });
+    console.log('✅ HEIC → JPEG 변환 완료');
+    return Buffer.from(outputBuffer);
+  } catch (error) {
+    console.error('❌ HEIC 변환 실패:', error);
+    throw new Error('HEIC 파일 변환에 실패했습니다.');
+  }
+}
 
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
@@ -68,14 +92,24 @@ export async function POST(request: NextRequest) {
 
     // 이미지 파일을 버퍼로 변환
     const bytes = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer = Buffer.from(bytes);
+    let contentType = imageFile.type;
+    let fileExt = imageFile.name.split('.').pop();
+
+    // HEIC 파일인지 확인하고 변환
+    if (isHEICBuffer(buffer)) {
+      console.log('📸 HEIC 파일 감지됨, JPEG로 변환 시작');
+      buffer = await convertHEICToJPEG(buffer);
+      contentType = 'image/jpeg';
+      fileExt = 'jpg';
+    }
 
     // Supabase Storage에 업로드
-    const fileName = `personality-analysis/${Date.now()}-${imageFile.name}`;
+    const fileName = `personality-analysis/${Date.now()}.${fileExt}`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('face-reader')
       .upload(fileName, buffer, {
-        contentType: imageFile.type,
+        contentType: contentType,
         cacheControl: '3600',
         upsert: false
       });

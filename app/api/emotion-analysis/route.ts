@@ -3,8 +3,32 @@ import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
+import convert from 'heic-convert';
 
 const STORAGE_BUCKET = "face-reader";
+
+// HEIC 파일인지 확인하는 함수
+function isHEICBuffer(buffer: Buffer): boolean {
+  const signature = buffer.toString('ascii', 4, 12);
+  return signature.includes('heic') || signature.includes('mif1');
+}
+
+// HEIC를 JPEG로 변환하는 함수
+async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
+  try {
+    console.log('🔄 HEIC 파일 감지, JPEG로 변환 중...');
+    const outputBuffer = await convert({
+      buffer: buffer,
+      format: 'JPEG',
+      quality: 0.9
+    });
+    console.log('✅ HEIC → JPEG 변환 완료');
+    return Buffer.from(outputBuffer);
+  } catch (error) {
+    console.error('❌ HEIC 변환 실패:', error);
+    throw new Error('HEIC 파일 변환에 실패했습니다.');
+  }
+}
 
 // OpenAI 클라이언트 초기화
 const openai = new OpenAI({
@@ -84,7 +108,17 @@ export async function POST(request: NextRequest) {
 
     // 이미지를 base64로 변환
     const bytes = await image.arrayBuffer();
-    const base64Image = Buffer.from(bytes).toString('base64');
+    let buffer = Buffer.from(bytes);
+    let contentType = image.type;
+
+    // HEIC 파일인지 확인하고 변환
+    if (isHEICBuffer(buffer)) {
+      console.log('📸 HEIC 파일 감지됨, JPEG로 변환 시작');
+      buffer = await convertHEICToJPEG(buffer);
+      contentType = 'image/jpeg';
+    }
+
+    const base64Image = buffer.toString('base64');
 
     // 프롬프트 로드
     const prompt = await loadPrompt(language);
