@@ -232,6 +232,28 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (interaction === 'compatibility_share') {
+      // 궁합 공유 시 sender_id와 receiver_id 조회
+      const { data: shareData, error: queryError } = await supabase
+        .from('compatibility_shares')
+        .select('receiver_id, sender_id')
+        .eq('id', shareId)
+        .single();
+
+      if (queryError || !shareData) {
+        return NextResponse.json({
+          error: '궁합 결과 공유 중 오류가 발생했습니다.',
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        receiverId: shareData.receiver_id,
+        senderId: shareData.sender_id,
+        message: '궁합 결과 공유 성공'
+      });
+    }
+
     // 궁합 결과의 interaction 필드 업데이트
     const { data: updateData, error: updateError } = await supabase
       .from('compatibility_shares')
