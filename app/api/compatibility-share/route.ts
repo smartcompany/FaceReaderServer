@@ -216,12 +216,13 @@ export async function PATCH(request: NextRequest) {
 
     // 허용된 ENUM 값 검증
     const allowedInteractions = [
+      'compatibility_share',  // 궁합 공유
       'interested', 
       'notInterested', 
       'chatRequest', 
       'chatDenied', 
       'chatAccepted',
-      'chatCompleted' // 새로 추가
+      'chatCompleted'
     ];
     
     if (!allowedInteractions.includes(interaction)) {
