@@ -97,6 +97,13 @@ export async function POST(req: Request) {
         senderName: senderName,
         compatibilityShareId: compatibilityShareId,
       },
+      android: {
+        notification: {
+          channelId: 'high_importance_channel',
+          priority: 'high',
+          sound: 'default',
+        },
+      },
       token,
     });
 
@@ -112,6 +119,13 @@ export async function POST(req: Request) {
         message: message,
         senderName: senderName,
         compatibilityShareId: compatibilityShareId,
+      },
+      android: {
+        notification: {
+          channelId: 'high_importance_channel',
+          priority: 'high',
+          sound: 'default',
+        },
       },
       token,
     });
