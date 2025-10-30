@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import fortunePrompt from './fortune-prediction.txt';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
@@ -44,24 +43,16 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
 // Supabase 클라이언트 초기화
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 프롬프트 파일 읽기 함수
+// 프롬프트 파일 로드(로컬 import)
 async function loadPrompt(language: string, platform: string): Promise<string> {
-  // Supabase Storage에서 프롬프트 파일 가져오기
-  const { data, error } = await supabase.storage
-    .from('face-reader')
-    .download('prompts/fortune-prediction.txt');
-
-  if (error) {
-    console.error('Supabase Storage에서 프롬프트 파일 읽기 오류:', error);
-    throw new Error(`프롬프트 파일을 불러올 수 없습니다: ${error.message}`);
+  try {
+    console.log('플랫폼:', platform);
+    return getLanguageSpecificPrompt(fortunePrompt as unknown as string, language);
+  } catch (error) {
+    console.error('프롬프트 파일 읽기 오류:', error);
+    const fallbackPrompt = '당신은 전문 점성가입니다. 사진을 바탕으로 올해의 운세를 분석해 주세요.';
+    return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
-
-  const promptContent = await data.text();
-  console.log('프롬프트 내용:', promptContent);
-  console.log('플랫폼:', platform);
-  
-  // 언어별 프롬프트 생성
-  return getLanguageSpecificPrompt(promptContent, language);
 }
 
 export async function POST(request: NextRequest) {

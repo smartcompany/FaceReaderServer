@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import emotionPrompt from './emotion-analysis.txt';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
@@ -50,31 +51,12 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 // Supabase 클라이언트 초기화
 const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
-// 프롬프트 파일 읽기 함수 (Supabase에서 읽기)
+// 프롬프트 로드(로컬 import)
 async function loadPrompt(language: string): Promise<string> {
   try {
-    const promptFileName = 'emotion-analysis.txt';
-    
-    console.log('Supabase에서 프롬프트 파일 읽기:', promptFileName);
-    
-    // Supabase Storage에서 프롬프트 파일 읽기
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .download(`prompts/${promptFileName}`);
-    
-    if (error) {
-      console.error('Supabase 프롬프트 파일 읽기 오류:', error);
-      throw new Error(`프롬프트 파일을 찾을 수 없습니다: ${promptFileName}`);
-    }
-    
-    const promptContent = await data.text();
-    console.log('프롬프트 내용:', promptContent);
-    
-    // 언어별 프롬프트 생성
-    return getLanguageSpecificPrompt(promptContent, language);
+    return getLanguageSpecificPrompt(emotionPrompt as unknown as string, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    // 기본 프롬프트 반환
     const fallbackPrompt = '당신은 전문적인 감정 분석가입니다. 사진에서 감정 상태를 분석해주세요.';
     return getLanguageSpecificPrompt(fallbackPrompt, language);
   }

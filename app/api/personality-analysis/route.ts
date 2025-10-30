@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import personalityPrompt from './personality-analysis.txt';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
- 
-const STORAGE_BUCKET = "rate-history";
 
 // HEIC 파일인지 확인하는 함수
 function isHEICBuffer(buffer: Buffer): boolean {
@@ -44,23 +41,15 @@ const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
 // Supabase 클라이언트 초기화
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 프롬프트 파일 읽기 함수
+// 프롬프트 파일 로드(로컬 import)
 async function loadPrompt(language: string): Promise<string> {
-  // Supabase Storage에서 프롬프트 파일 가져오기
-  const { data, error } = await supabase.storage
-    .from('face-reader')
-    .download('prompts/personality-analysis.txt');
-
-  if (error) {
-    console.error('Supabase Storage에서 프롬프트 파일 읽기 오류:', error);
-    throw new Error(`프롬프트 파일을 불러올 수 없습니다: ${error.message}`);
+  try {
+    return getLanguageSpecificPrompt(personalityPrompt as unknown as string, language);
+  } catch (error) {
+    console.error('프롬프트 파일 읽기 오류:', error);
+    const fallback = '당신은 이미지 기반 캐릭터 성격 분석가입니다. 외형적 분위기를 바탕으로 가상의 캐릭터 성격을 창작적으로 분석하고 JSON으로만 답하세요.';
+    return getLanguageSpecificPrompt(fallback, language);
   }
-
-  const promptContent = await data.text();
-  console.log('프롬프트 내용:', promptContent);
-  
-  // 언어별 프롬프트 생성
-  return getLanguageSpecificPrompt(promptContent, language);
 }
 
 export async function POST(request: NextRequest) {
