@@ -67,7 +67,7 @@ export default function Page() {
               <h3 className="font-semibold text-gray-700 mb-2">🧠 AI 분석</h3>
               <ul className="text-sm text-gray-600 space-y-1">
                 <li>• POST /api/personality-analysis - 성격 분석</li>
-                <li>• POST /api/fortune-prediction - 올해의 운세 예측</li>
+                <li>• POST /api/fortune-prediction - 오늘의 운세 예측</li>
                 <li>• POST /api/compatibility-analysis - 호환성 분석</li>
               </ul>
             </div>
