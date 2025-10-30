@@ -50,7 +50,7 @@ async function loadPrompt(language: string, platform: string): Promise<string> {
     return getLanguageSpecificPrompt(fortunePrompt as unknown as string, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    const fallbackPrompt = '당신은 전문 점성가입니다. 사진을 바탕으로 올해의 운세를 분석해 주세요.';
+    const fallbackPrompt = '당신은 전문 점성가입니다. 사진을 바탕으로 오늘의 운세를 분석해 주세요.';
     return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
 }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     // 더미 데이터 사용 여부 확인
     const useDummy = await shouldUseDummyData();
     if (useDummy) {
-      console.log('더미 데이터 모드로 올해의 운세 예측 실행');
+      console.log('더미 데이터 모드로 오늘의 운세 예측 실행');
       const dummyData = await loadDummyData('fortune-prediction.json');
       return NextResponse.json(dummyData);
     }
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     
     if (!fortuneResult) {
       return NextResponse.json(
-        { error: 'AI 올해의 운세 예측 결과를 생성할 수 없습니다.' },
+        { error: 'AI 오늘의 운세 예측 결과를 생성할 수 없습니다.' },
         { status: 500 }
       );
     }
@@ -193,12 +193,12 @@ export async function POST(request: NextRequest) {
         // 기본 구조로 재구성
         parsedFortune = {
           overall_score: 0,
-          wealth_fortune: '올해의 운세 예측 결과를 확인할 수 없습니다.',
-          health_fortune: '올해의 운세 예측 결과를 확인할 수 없습니다.',
-          love_fortune: '올해의 운세 예측 결과를 확인할 수 없습니다.',
-          career_fortune: '올해의 운세 예측 결과를 확인할 수 없습니다.',
-          luck_improvement: '올해의 운세 예측 결과를 확인할 수 없습니다.',
-          precautions: '올해의 운세 예측 결과를 확인할 수 없습니다.'
+          wealth_fortune: '오늘의 운세 예측 결과를 확인할 수 없습니다.',
+          health_fortune: '오늘의 운세 예측 결과를 확인할 수 없습니다.',
+          love_fortune: '오늘의 운세 예측 결과를 확인할 수 없습니다.',
+          career_fortune: '오늘의 운세 예측 결과를 확인할 수 없습니다.',
+          luck_improvement: '오늘의 운세 예측 결과를 확인할 수 없습니다.',
+          precautions: '오늘의 운세 예측 결과를 확인할 수 없습니다.'
         };
       }
       
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         { 
-            error: '올해의 운세 예측 중 오류가 발생했습니다.',
+            error: '오늘의 운세 예측 중 오류가 발생했습니다.',
             details: fortuneResult
         },
         { status: 500 }
@@ -223,11 +223,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('올해의 운세 예측 API 오류:', error);
+    console.error('오늘의 운세 예측 API 오류:', error);
     
     return NextResponse.json(
       { 
-        error: '올해의 운세 예측 중 오류가 발생했습니다.',
+        error: '오늘의 운세 예측 중 오류가 발생했습니다.',
         details: error instanceof Error ? error.message : '알 수 없는 오류'
       },
       { status: 500 }
@@ -238,8 +238,8 @@ export async function POST(request: NextRequest) {
 // GET 요청 처리 (API 정보 제공)
 export async function GET() {
   return NextResponse.json({
-    message: '올해의 운세 예측 API',
-    description: '이미지 파일을 업로드하여 AI 기반 올해의 운세 예측을 받을 수 있습니다.',
+    message: '오늘의 운세 예측 API',
+    description: '이미지 파일을 업로드하여 AI 기반 오늘의 운세 예측을 받을 수 있습니다.',
     usage: 'POST /api/fortune-prediction with multipart/form-data containing image file',
     requestFormat: {
       image: 'File (이미지 파일)'
@@ -256,7 +256,7 @@ export async function GET() {
     ],
     responseFormat: {
       success: 'boolean',
-      fortune: 'object (올해의 운세 예측 결과)',
+      fortune: 'object (오늘의 운세 예측 결과)',
       image: 'string (업로드된 이미지 URL)',
       timestamp: 'string (예측 완료 시간)'
     }
