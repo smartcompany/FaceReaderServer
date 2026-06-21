@@ -389,9 +389,13 @@ export async function POST(request: NextRequest) {
       mode:
         image1Url && image2Url
           ? 'url'
-          : image1File && image2File
-            ? 'file'
-            : 'invalid',
+          : image1Url && image2File
+            ? 'url_file'
+            : image1File && image2Url
+              ? 'file_url'
+              : image1File && image2File
+                ? 'file'
+                : 'invalid',
       image1Url: image1Url ? summarizeUrl(image1Url) : null,
       image2Url: image2Url ? summarizeUrl(image2Url) : null,
       image1FileName: image1File?.name ?? null,
@@ -408,6 +412,28 @@ export async function POST(request: NextRequest) {
     if (image1Url && image2Url) {
       currentStep = 'PREPARE_IMAGE1_URL';
       const image1 = await prepareImageFromUrl(image1Url, 'person1');
+
+      currentStep = 'PREPARE_IMAGE2_URL';
+      const image2 = await prepareImageFromUrl(image2Url, 'person2');
+
+      publicUrl1 = image1.publicUrl;
+      publicUrl2 = image2.publicUrl;
+      openAiImageUrl1 = image1.openAiImageUrl;
+      openAiImageUrl2 = image2.openAiImageUrl;
+    } else if (image1Url && image2File) {
+      currentStep = 'PREPARE_IMAGE1_URL';
+      const image1 = await prepareImageFromUrl(image1Url, 'person1');
+
+      currentStep = 'PREPARE_IMAGE2_FILE';
+      const image2 = await prepareImageFromFile(image2File, 'person2');
+
+      publicUrl1 = image1.publicUrl;
+      publicUrl2 = image2.publicUrl;
+      openAiImageUrl1 = image1.openAiImageUrl;
+      openAiImageUrl2 = image2.openAiImageUrl;
+    } else if (image1File && image2Url) {
+      currentStep = 'PREPARE_IMAGE1_FILE';
+      const image1 = await prepareImageFromFile(image1File, 'person1');
 
       currentStep = 'PREPARE_IMAGE2_URL';
       const image2 = await prepareImageFromUrl(image2Url, 'person2');
