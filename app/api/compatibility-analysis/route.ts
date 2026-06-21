@@ -11,6 +11,36 @@ const STORAGE_BUCKET = "face-reader";
 const OPENAI_IMAGE_MAX_SIZE = 512;
 const OPENAI_JPEG_QUALITY = 80;
 
+function logCompatibility(
+  step: string,
+  message: string,
+  data?: Record<string, unknown>
+) {
+  if (data) {
+    console.log(`[Compatibility][${step}] ${message}`, data);
+    return;
+  }
+
+  console.log(`[Compatibility][${step}] ${message}`);
+}
+
+function summarizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url.slice(0, 120);
+  }
+}
+
+function getErrorDetails(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 // HEIC 파일인지 확인하는 함수
 function isHEICBuffer(buffer: Buffer): boolean {
   // HEIC 파일은 'ftyp' 시그니처를 가지며, 그 뒤에 'heic' 또는 'mif1'이 옴
@@ -102,22 +132,33 @@ async function processImageBuffer(
 }
 
 async function downloadImageBuffer(
-  imageUrl: string
+  imageUrl: string,
+  label: string
 ): Promise<{ buffer: Buffer; contentType: string; fileExt: string }> {
+  logCompatibility('DOWNLOAD', `${label} 다운로드 시작`, {
+    url: summarizeUrl(imageUrl),
+  });
+
   const storagePath = parseSupabaseStoragePath(imageUrl);
+  logCompatibility('DOWNLOAD', `${label} URL 파싱 결과`, {
+    isSupabaseStorage: Boolean(storagePath),
+    bucket: storagePath?.bucket,
+    path: storagePath?.path,
+  });
 
   if (storagePath) {
-    console.log(
-      `Supabase Storage에서 이미지 다운로드: ${storagePath.bucket}/${storagePath.path}`
-    );
-
     const { data, error } = await supabase.storage
       .from(storagePath.bucket)
       .download(storagePath.path);
 
     if (error || !data) {
+      logCompatibility('DOWNLOAD', `${label} Supabase 다운로드 실패`, {
+        bucket: storagePath.bucket,
+        path: storagePath.path,
+        error: error?.message || '데이터 없음',
+      });
       throw new Error(
-        `Supabase 이미지 다운로드 실패: ${error?.message || '데이터 없음'}`
+        `Supabase 이미지 다운로드 실패 (${label}): ${error?.message || '데이터 없음'}`
       );
     }
 
@@ -125,30 +166,50 @@ async function downloadImageBuffer(
     const contentType = data.type || 'image/jpeg';
     const fileExt =
       storagePath.path.split('.').pop() || getFileExtension(contentType);
-
-    return processImageBuffer(
+    const processed = await processImageBuffer(
       Buffer.from(arrayBuffer),
       contentType,
       fileExt
     );
+
+    logCompatibility('DOWNLOAD', `${label} Supabase 다운로드 완료`, {
+      bytes: processed.buffer.length,
+      contentType: processed.contentType,
+      fileExt: processed.fileExt,
+    });
+
+    return processed;
   }
 
-  console.log('HTTP URL에서 이미지 다운로드:', imageUrl);
   const response = await fetch(imageUrl);
 
   if (!response.ok) {
-    throw new Error(`이미지 다운로드 실패: HTTP ${response.status}`);
+    logCompatibility('DOWNLOAD', `${label} HTTP 다운로드 실패`, {
+      status: response.status,
+      statusText: response.statusText,
+      url: summarizeUrl(imageUrl),
+    });
+    throw new Error(
+      `이미지 다운로드 실패 (${label}): HTTP ${response.status}`
+    );
   }
 
   const contentType = response.headers.get('content-type') || 'image/jpeg';
   const fileExt = getFileExtension(contentType);
   const arrayBuffer = await response.arrayBuffer();
-
-  return processImageBuffer(
+  const processed = await processImageBuffer(
     Buffer.from(arrayBuffer),
     contentType,
     fileExt
   );
+
+  logCompatibility('DOWNLOAD', `${label} HTTP 다운로드 완료`, {
+    bytes: processed.buffer.length,
+    contentType: processed.contentType,
+    fileExt: processed.fileExt,
+  });
+
+  return processed;
 }
 
 async function uploadCompatibilityImage(
@@ -207,24 +268,33 @@ async function resizeImageForOpenAI(
     .toBuffer();
 
   console.log(
-    `OpenAI용 이미지 리사이즈: ${width}x${height} -> max ${OPENAI_IMAGE_MAX_SIZE}px`
+    `OpenAI용 이미지 리사이즈: ${width}x${height} -> max ${OPENAI_IMAGE_MAX_SIZE}px, outputBytes=${resized.length}`
   );
 
   return { buffer: resized, contentType: 'image/jpeg' };
 }
 
 async function prepareImageFromUrl(
-  imageUrl: string
+  imageUrl: string,
+  label: 'person1' | 'person2'
 ): Promise<{ publicUrl: string; openAiImageUrl: string }> {
-  const processedImage = await downloadImageBuffer(imageUrl);
+  const processedImage = await downloadImageBuffer(imageUrl, label);
   const openAiImage = await resizeImageForOpenAI(
     processedImage.buffer,
     processedImage.contentType
   );
+  const openAiImageUrl = toDataUrl(openAiImage.buffer, openAiImage.contentType);
+
+  logCompatibility('PREPARE_URL', `${label} OpenAI payload 준비 완료`, {
+    sourceUrl: summarizeUrl(imageUrl),
+    sourceBytes: processedImage.buffer.length,
+    openAiBytes: openAiImage.buffer.length,
+    dataUrlLength: openAiImageUrl.length,
+  });
 
   return {
     publicUrl: imageUrl,
-    openAiImageUrl: toDataUrl(openAiImage.buffer, openAiImage.contentType),
+    openAiImageUrl,
   };
 }
 
@@ -250,9 +320,20 @@ async function prepareImageFromFile(
     personLabel
   );
 
+  const openAiImageUrl = toDataUrl(openAiImage.buffer, openAiImage.contentType);
+
+  logCompatibility('PREPARE_FILE', `${personLabel} 파일 준비 완료`, {
+    fileName: file.name,
+    fileSize: file.size,
+    sourceBytes: processedImage.buffer.length,
+    openAiBytes: openAiImage.buffer.length,
+    dataUrlLength: openAiImageUrl.length,
+    publicUrl: summarizeUrl(publicUrl),
+  });
+
   return {
     publicUrl,
-    openAiImageUrl: toDataUrl(openAiImage.buffer, openAiImage.contentType),
+    openAiImageUrl,
   };
 }
 
@@ -269,27 +350,55 @@ async function loadPrompt(language: string, _platform?: string): Promise<string>
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startedAt = Date.now();
+  let currentStep = 'START';
+
+  logCompatibility(currentStep, '요청 수신', {
+    requestId,
+    hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
+    hasSupabaseUrl: Boolean(SUPABASE_URL),
+    hasSupabaseKey: Boolean(SUPABASE_KEY),
+    openAiModel: openAIConfig.model,
+  });
+
   try {
-    // 더미 데이터 사용 여부 확인
+    currentStep = 'CHECK_DUMMY';
     const useDummy = await shouldUseDummyData();
+    logCompatibility(currentStep, '더미 데이터 설정 확인', { useDummy });
+
     if (useDummy) {
-      console.log('더미 데이터 모드로 궁합 분석 실행');
+      logCompatibility('LOAD_DUMMY', '더미 데이터 모드로 궁합 분석 실행');
       const dummyData = await loadDummyData('compatibility-analysis.json');
       return NextResponse.json(dummyData);
     }
 
-    // 언어 정보 추출
+    currentStep = 'PARSE_REQUEST';
     const language = getLanguageFromHeaders(request);
-    console.log('요청 언어:', language);
-    
     const formData = await request.formData();
     const image1File = formData.get('image1') as File | null;
     const image2File = formData.get('image2') as File | null;
     const image1Url = formData.get('image1Url') as string | null;
     const image2Url = formData.get('image2Url') as string | null;
     const platform = formData.get('platform') as string | null;
-    
-    console.log('요청 플랫폼:', platform);
+
+    logCompatibility(currentStep, '요청 파싱 완료', {
+      requestId,
+      language,
+      platform,
+      mode:
+        image1Url && image2Url
+          ? 'url'
+          : image1File && image2File
+            ? 'file'
+            : 'invalid',
+      image1Url: image1Url ? summarizeUrl(image1Url) : null,
+      image2Url: image2Url ? summarizeUrl(image2Url) : null,
+      image1FileName: image1File?.name ?? null,
+      image1FileSize: image1File?.size ?? null,
+      image2FileName: image2File?.name ?? null,
+      image2FileSize: image2File?.size ?? null,
+    });
     
     let publicUrl1: string;
     let publicUrl2: string;
@@ -297,43 +406,52 @@ export async function POST(request: NextRequest) {
     let openAiImageUrl2: string;
 
     if (image1Url && image2Url) {
-      console.log('URL 모드로 궁합 분석 진행 (재업로드 생략, OpenAI용 리사이즈만 적용)');
-      console.log('이미지1 URL:', image1Url);
-      console.log('이미지2 URL:', image2Url);
+      currentStep = 'PREPARE_IMAGE1_URL';
+      const image1 = await prepareImageFromUrl(image1Url, 'person1');
 
-      const image1 = await prepareImageFromUrl(image1Url);
-      const image2 = await prepareImageFromUrl(image2Url);
+      currentStep = 'PREPARE_IMAGE2_URL';
+      const image2 = await prepareImageFromUrl(image2Url, 'person2');
 
       publicUrl1 = image1.publicUrl;
       publicUrl2 = image2.publicUrl;
       openAiImageUrl1 = image1.openAiImageUrl;
       openAiImageUrl2 = image2.openAiImageUrl;
     } else if (image1File && image2File) {
-      console.log('파일 업로드 모드로 궁합 분석 진행');
-      console.log('업로드된 파일 1:', image1File.name, '크기:', image1File.size);
-      console.log('업로드된 파일 2:', image2File.name, '크기:', image2File.size);
-
+      currentStep = 'PREPARE_IMAGE1_FILE';
       const image1 = await prepareImageFromFile(image1File, 'person1');
+
+      currentStep = 'PREPARE_IMAGE2_FILE';
       const image2 = await prepareImageFromFile(image2File, 'person2');
 
       publicUrl1 = image1.publicUrl;
       publicUrl2 = image2.publicUrl;
       openAiImageUrl1 = image1.openAiImageUrl;
       openAiImageUrl2 = image2.openAiImageUrl;
-
-      console.log('첫 번째 이미지 Supabase 업로드 완료:', publicUrl1);
-      console.log('두 번째 이미지 Supabase 업로드 완료:', publicUrl2);
     } else {
+      logCompatibility('VALIDATION', '필수 이미지 누락', { requestId });
       return NextResponse.json(
-        { error: '두 개의 이미지 파일(image1, image2) 또는 두 개의 이미지 URL(image1Url, image2Url)이 필요합니다.' },
+        {
+          error: '두 개의 이미지 파일(image1, image2) 또는 두 개의 이미지 URL(image1Url, image2Url)이 필요합니다.',
+          step: 'VALIDATION',
+          requestId,
+        },
         { status: 400 }
       );
     }
 
-    // 프롬프트 로드
+    currentStep = 'LOAD_PROMPT';
     const prompt = await loadPrompt(language, platform);
+    logCompatibility(currentStep, '프롬프트 로드 완료', {
+      promptLength: prompt.length,
+    });
     
-    // OpenAI API 호출 (두 이미지 모두 포함)
+    currentStep = 'OPENAI_REQUEST';
+    logCompatibility(currentStep, 'OpenAI API 호출 시작', {
+      model: openAIConfig.model,
+      image1DataUrlLength: openAiImageUrl1.length,
+      image2DataUrlLength: openAiImageUrl2.length,
+    });
+
     const response = await openai.chat.completions.create({
       ...openAIConfig,
       messages: [
@@ -366,32 +484,42 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    currentStep = 'OPENAI_RESPONSE';
+    logCompatibility(currentStep, 'OpenAI API 호출 완료', {
+      finishReason: response.choices[0]?.finish_reason,
+      promptTokens: response.usage?.prompt_tokens,
+      completionTokens: response.usage?.completion_tokens,
+      totalTokens: response.usage?.total_tokens,
+    });
+
     const compatibilityResult = response.choices[0]?.message?.content;
     
     if (!compatibilityResult) {
+      logCompatibility('OPENAI_EMPTY', 'OpenAI 응답 본문 없음', { requestId });
       return NextResponse.json(
-        { error: 'AI 궁합 분석 결과를 생성할 수 없습니다.' },
+        {
+          error: 'AI 궁합 분석 결과를 생성할 수 없습니다.',
+          step: 'OPENAI_EMPTY',
+          requestId,
+        },
         { status: 500 }
       );
     }
 
-    // JSON 응답 파싱 및 검증
+    currentStep = 'PARSE_JSON';
     let parsedCompatibility;
     try {
-      console.log('AI 원본 응답:', compatibilityResult);
+      logCompatibility(currentStep, 'AI 응답 JSON 파싱 시작', {
+        responseLength: compatibilityResult.length,
+        responsePreview: compatibilityResult.slice(0, 300),
+      });
       
-      // JSON 코드 블록이 있는 경우 추출
       const jsonMatch = compatibilityResult.match(/```json\s*([\s\S]*?)\s*```/);
       const jsonString = jsonMatch ? jsonMatch[1] : compatibilityResult;
-      
-      // JSON 문자열 정리 (불필요한 공백, 줄바꿈 제거)
       const cleanJsonString = jsonString.trim().replace(/\n/g, ' ').replace(/\r/g, '');
-      
-      console.log('정리된 JSON 문자열:', cleanJsonString);
       
       parsedCompatibility = JSON.parse(cleanJsonString);
       
-      // 필수 필드 검증
       const requiredFields = [
         'overall_score', 'personality_compatibility', 'emotional_compatibility',
         'social_compatibility', 'communication_compatibility', 'long_term_prospects',
@@ -414,24 +542,35 @@ export async function POST(request: NextRequest) {
       );
       
       if (missingFields.length > 0) {
-        console.warn('AI 응답에 필수 필드가 누락됨:', missingFields);
-        console.log('플랫폼:', platform);
-        // 기본 구조로 재구성
+        logCompatibility('PARSE_JSON', '필수 필드 누락, 기본값 사용', {
+          missingFields,
+        });
         parsedCompatibility = defaultStructure;
+      } else {
+        logCompatibility('PARSE_JSON', 'JSON 파싱 성공');
       }
       
     } catch (parseError) {
-      console.error('JSON 파싱 오류:', parseError);
-      console.log('원본 응답:', compatibilityResult);
+      logCompatibility('PARSE_JSON', 'JSON 파싱 실패', {
+        error: getErrorDetails(parseError),
+        responsePreview: compatibilityResult.slice(0, 500),
+      });
 
       return NextResponse.json(
         { 
-            error: '궁합 분석 중 오류가 발생했습니다.',
-            details: compatibilityResult
+          error: '궁합 분석 중 오류가 발생했습니다.',
+          details: compatibilityResult.slice(0, 1000),
+          step: 'PARSE_JSON',
+          requestId,
         },
         { status: 500 }
       );
     }
+
+    logCompatibility('SUCCESS', '궁합 분석 완료', {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+    });
 
     return NextResponse.json({
       success: true,
@@ -440,16 +579,42 @@ export async function POST(request: NextRequest) {
         person1: publicUrl1,
         person2: publicUrl2
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      requestId,
     });
 
   } catch (error) {
-    console.error('궁합 분석 API 오류:', error);
+    const details = getErrorDetails(error);
+    const openAiError =
+      typeof error === 'object' &&
+      error !== null &&
+      'status' in error &&
+      'message' in error
+        ? {
+            status: (error as { status?: number }).status,
+            message: (error as { message?: string }).message,
+            code:
+              'code' in error
+                ? (error as { code?: string }).code
+                : undefined,
+          }
+        : null;
+
+    logCompatibility(currentStep, '요청 처리 실패', {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+      details,
+      openAiError,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     
     return NextResponse.json(
       { 
         error: '궁합 분석 중 오류가 발생했습니다.',
-        details: error instanceof Error ? error.message : '알 수 없는 오류'
+        details,
+        step: currentStep,
+        requestId,
+        openAiError,
       },
       { status: 500 }
     );
