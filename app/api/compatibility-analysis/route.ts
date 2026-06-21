@@ -448,12 +448,16 @@ export async function POST(request: NextRequest) {
     currentStep = 'OPENAI_REQUEST';
     logCompatibility(currentStep, 'OpenAI API 호출 시작', {
       model: openAIConfig.model,
+      maxCompletionTokens: 12000,
+      reasoningEffort: 'minimal',
       image1DataUrlLength: openAiImageUrl1.length,
       image2DataUrlLength: openAiImageUrl2.length,
     });
 
     const response = await openai.chat.completions.create({
       ...openAIConfig,
+      max_completion_tokens: 12000,
+      reasoning_effort: 'minimal',
       messages: [
         {
           role: "user",
@@ -485,22 +489,48 @@ export async function POST(request: NextRequest) {
     });
 
     currentStep = 'OPENAI_RESPONSE';
+    const choice = response.choices[0];
+    const usage = response.usage as
+      | (typeof response.usage & {
+          completion_tokens_details?: { reasoning_tokens?: number };
+        })
+      | undefined;
+
     logCompatibility(currentStep, 'OpenAI API 호출 완료', {
-      finishReason: response.choices[0]?.finish_reason,
-      promptTokens: response.usage?.prompt_tokens,
-      completionTokens: response.usage?.completion_tokens,
-      totalTokens: response.usage?.total_tokens,
+      finishReason: choice?.finish_reason,
+      hasContent: Boolean(choice?.message?.content),
+      contentLength: choice?.message?.content?.length ?? 0,
+      refusal: choice?.message?.refusal ?? null,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+      reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
+      totalTokens: usage?.total_tokens,
     });
 
-    const compatibilityResult = response.choices[0]?.message?.content;
+    const compatibilityResult = choice?.message?.content;
     
     if (!compatibilityResult) {
-      logCompatibility('OPENAI_EMPTY', 'OpenAI 응답 본문 없음', { requestId });
+      logCompatibility('OPENAI_EMPTY', 'OpenAI 응답 본문 없음', {
+        requestId,
+        finishReason: choice?.finish_reason,
+        refusal: choice?.message?.refusal ?? null,
+        promptTokens: usage?.prompt_tokens,
+        completionTokens: usage?.completion_tokens,
+        reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
+        totalTokens: usage?.total_tokens,
+      });
       return NextResponse.json(
         {
           error: 'AI 궁합 분석 결과를 생성할 수 없습니다.',
+          details:
+            choice?.finish_reason === 'length'
+              ? '모델 출력 토큰 한도에 도달했습니다. reasoning 토큰이 출력을 모두 사용했을 수 있습니다.'
+              : choice?.message?.refusal ||
+                'OpenAI가 빈 응답을 반환했습니다.',
           step: 'OPENAI_EMPTY',
           requestId,
+          finishReason: choice?.finish_reason ?? null,
+          reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens ?? null,
         },
         { status: 500 }
       );
