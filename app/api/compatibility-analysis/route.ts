@@ -4,9 +4,12 @@ import { createClient } from '@supabase/supabase-js';
 import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
+import sharp from 'sharp';
 import compatibilityPrompt from './compatibility-analysis_normal.txt';
 
 const STORAGE_BUCKET = "face-reader";
+const OPENAI_IMAGE_MAX_SIZE = 512;
+const OPENAI_JPEG_QUALITY = 80;
 
 // HEIC 파일인지 확인하는 함수
 function isHEICBuffer(buffer: Buffer): boolean {
@@ -52,6 +55,207 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 // Supabase 클라이언트 초기화
 const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
+function parseSupabaseStoragePath(
+  url: string
+): { bucket: string; path: string } | null {
+  const match = url.match(
+    /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/([^?]+)/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    bucket: match[1],
+    path: decodeURIComponent(match[2]),
+  };
+}
+
+function getFileExtension(contentType: string, fallback = 'jpg'): string {
+  const extensionMap: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+  };
+
+  return extensionMap[contentType.toLowerCase()] || fallback;
+}
+
+async function processImageBuffer(
+  buffer: Buffer,
+  contentType: string,
+  fileExt: string
+): Promise<{ buffer: Buffer; contentType: string; fileExt: string }> {
+  if (isHEICBuffer(buffer)) {
+    console.log('📸 HEIC 파일 감지, JPEG로 변환 시작');
+    return {
+      buffer: await convertHEICToJPEG(buffer),
+      contentType: 'image/jpeg',
+      fileExt: 'jpg',
+    };
+  }
+
+  return { buffer, contentType, fileExt };
+}
+
+async function downloadImageBuffer(
+  imageUrl: string
+): Promise<{ buffer: Buffer; contentType: string; fileExt: string }> {
+  const storagePath = parseSupabaseStoragePath(imageUrl);
+
+  if (storagePath) {
+    console.log(
+      `Supabase Storage에서 이미지 다운로드: ${storagePath.bucket}/${storagePath.path}`
+    );
+
+    const { data, error } = await supabase.storage
+      .from(storagePath.bucket)
+      .download(storagePath.path);
+
+    if (error || !data) {
+      throw new Error(
+        `Supabase 이미지 다운로드 실패: ${error?.message || '데이터 없음'}`
+      );
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    const contentType = data.type || 'image/jpeg';
+    const fileExt =
+      storagePath.path.split('.').pop() || getFileExtension(contentType);
+
+    return processImageBuffer(
+      Buffer.from(arrayBuffer),
+      contentType,
+      fileExt
+    );
+  }
+
+  console.log('HTTP URL에서 이미지 다운로드:', imageUrl);
+  const response = await fetch(imageUrl);
+
+  if (!response.ok) {
+    throw new Error(`이미지 다운로드 실패: HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const fileExt = getFileExtension(contentType);
+  const arrayBuffer = await response.arrayBuffer();
+
+  return processImageBuffer(
+    Buffer.from(arrayBuffer),
+    contentType,
+    fileExt
+  );
+}
+
+async function uploadCompatibilityImage(
+  buffer: Buffer,
+  contentType: string,
+  fileExt: string,
+  personLabel: 'person1' | 'person2'
+): Promise<string> {
+  const fileName = `compatibility-analysis/${Date.now()}-${personLabel}.${fileExt}`;
+  const { error: uploadError } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(fileName, buffer, {
+      contentType,
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(`${personLabel} 이미지 업로드 실패: ${uploadError.message}`);
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+
+  return publicUrl;
+}
+
+function toDataUrl(buffer: Buffer, contentType: string): string {
+  return `data:${contentType};base64,${buffer.toString('base64')}`;
+}
+
+async function resizeImageForOpenAI(
+  buffer: Buffer,
+  contentType: string
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const metadata = await sharp(buffer).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  const needsResize =
+    width > OPENAI_IMAGE_MAX_SIZE || height > OPENAI_IMAGE_MAX_SIZE;
+  const isAlreadySmallJpeg =
+    !needsResize && contentType.toLowerCase() === 'image/jpeg';
+
+  if (isAlreadySmallJpeg) {
+    return { buffer, contentType };
+  }
+
+  const resized = await sharp(buffer)
+    .rotate()
+    .resize(OPENAI_IMAGE_MAX_SIZE, OPENAI_IMAGE_MAX_SIZE, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: OPENAI_JPEG_QUALITY })
+    .toBuffer();
+
+  console.log(
+    `OpenAI용 이미지 리사이즈: ${width}x${height} -> max ${OPENAI_IMAGE_MAX_SIZE}px`
+  );
+
+  return { buffer: resized, contentType: 'image/jpeg' };
+}
+
+async function prepareImageFromUrl(
+  imageUrl: string
+): Promise<{ publicUrl: string; openAiImageUrl: string }> {
+  const processedImage = await downloadImageBuffer(imageUrl);
+  const openAiImage = await resizeImageForOpenAI(
+    processedImage.buffer,
+    processedImage.contentType
+  );
+
+  return {
+    publicUrl: imageUrl,
+    openAiImageUrl: toDataUrl(openAiImage.buffer, openAiImage.contentType),
+  };
+}
+
+async function prepareImageFromFile(
+  file: File,
+  personLabel: 'person1' | 'person2'
+): Promise<{ publicUrl: string; openAiImageUrl: string }> {
+  const bytes = await file.arrayBuffer();
+  const processedImage = await processImageBuffer(
+    Buffer.from(bytes),
+    file.type || 'image/jpeg',
+    file.name.split('.').pop() || 'jpg'
+  );
+  const openAiImage = await resizeImageForOpenAI(
+    processedImage.buffer,
+    processedImage.contentType
+  );
+
+  const publicUrl = await uploadCompatibilityImage(
+    processedImage.buffer,
+    processedImage.contentType,
+    processedImage.fileExt,
+    personLabel
+  );
+
+  return {
+    publicUrl,
+    openAiImageUrl: toDataUrl(openAiImage.buffer, openAiImage.contentType),
+  };
+}
+
 // 프롬프트 로드(로컬 import 사용)
 async function loadPrompt(language: string, _platform?: string): Promise<string> {
   try {
@@ -89,96 +293,33 @@ export async function POST(request: NextRequest) {
     
     let publicUrl1: string;
     let publicUrl2: string;
+    let openAiImageUrl1: string;
+    let openAiImageUrl2: string;
 
-    // URL이 제공된 경우 파일 업로드 건너뛰기
     if (image1Url && image2Url) {
-      console.log('URL 모드로 궁합 분석 진행');
+      console.log('URL 모드로 궁합 분석 진행 (재업로드 생략, OpenAI용 리사이즈만 적용)');
       console.log('이미지1 URL:', image1Url);
       console.log('이미지2 URL:', image2Url);
-      
-      publicUrl1 = image1Url;
-      publicUrl2 = image2Url;
+
+      const image1 = await prepareImageFromUrl(image1Url);
+      const image2 = await prepareImageFromUrl(image2Url);
+
+      publicUrl1 = image1.publicUrl;
+      publicUrl2 = image2.publicUrl;
+      openAiImageUrl1 = image1.openAiImageUrl;
+      openAiImageUrl2 = image2.openAiImageUrl;
     } else if (image1File && image2File) {
-      // 기존 파일 업로드 로직
       console.log('파일 업로드 모드로 궁합 분석 진행');
       console.log('업로드된 파일 1:', image1File.name, '크기:', image1File.size);
       console.log('업로드된 파일 2:', image2File.name, '크기:', image2File.size);
 
-      // 첫 번째 이미지 파일을 버퍼로 변환
-      const bytes1 = await image1File.arrayBuffer();
-      let buffer1 = Buffer.from(bytes1);
-      let contentType1 = image1File.type;
-      let fileExt1 = image1File.name.split('.').pop();
+      const image1 = await prepareImageFromFile(image1File, 'person1');
+      const image2 = await prepareImageFromFile(image2File, 'person2');
 
-      // 두 번째 이미지 파일을 버퍼로 변환
-      const bytes2 = await image2File.arrayBuffer();
-      let buffer2 = Buffer.from(bytes2);
-      let contentType2 = image2File.type;
-      let fileExt2 = image2File.name.split('.').pop();
-
-      // 첫 번째 이미지가 HEIC인지 확인하고 변환
-      if (isHEICBuffer(buffer1)) {
-        console.log('📸 첫 번째 이미지가 HEIC 형식, JPEG로 변환 시작');
-        buffer1 = await convertHEICToJPEG(buffer1);
-        contentType1 = 'image/jpeg';
-        fileExt1 = 'jpg';
-      }
-
-      // 두 번째 이미지가 HEIC인지 확인하고 변환
-      if (isHEICBuffer(buffer2)) {
-        console.log('📸 두 번째 이미지가 HEIC 형식, JPEG로 변환 시작');
-        buffer2 = await convertHEICToJPEG(buffer2);
-        contentType2 = 'image/jpeg';
-        fileExt2 = 'jpg';
-      }
-
-      // Supabase Storage에 첫 번째 이미지 업로드
-      const fileName1 = `compatibility-analysis/${Date.now()}-person1.${fileExt1}`;
-      const { data: uploadData1, error: uploadError1 } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(fileName1, buffer1, {
-          contentType: contentType1,
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError1) {
-        console.error('첫 번째 이미지 Supabase 업로드 오류:', uploadError1);
-        return NextResponse.json(
-          { error: '첫 번째 이미지 업로드 중 오류가 발생했습니다.' },
-          { status: 500 }
-        );
-      }
-
-      // Supabase Storage에 두 번째 이미지 업로드
-      const fileName2 = `compatibility-analysis/${Date.now()}-person2.${fileExt2}`;
-      const { data: uploadData2, error: uploadError2 } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(fileName2, buffer2, {
-          contentType: contentType2,
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError2) {
-        console.error('두 번째 이미지 Supabase 업로드 오류:', uploadError2);
-        return NextResponse.json(
-          { error: '두 번째 이미지 업로드 중 오류가 발생했습니다.' },
-          { status: 500 }
-        );
-      }
-
-      // 공개 URL 생성
-      const { data: { publicUrl: url1 } } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(fileName1);
-
-      const { data: { publicUrl: url2 } } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(fileName2);
-
-      publicUrl1 = url1;
-      publicUrl2 = url2;
+      publicUrl1 = image1.publicUrl;
+      publicUrl2 = image2.publicUrl;
+      openAiImageUrl1 = image1.openAiImageUrl;
+      openAiImageUrl2 = image2.openAiImageUrl;
 
       console.log('첫 번째 이미지 Supabase 업로드 완료:', publicUrl1);
       console.log('두 번째 이미지 Supabase 업로드 완료:', publicUrl2);
@@ -206,13 +347,15 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: publicUrl1
+                url: openAiImageUrl1,
+                detail: "low",
               }
             },
             {
               type: "image_url",
               image_url: {
-                url: publicUrl2
+                url: openAiImageUrl2,
+                detail: "low",
               }
             }
           ]
@@ -324,7 +467,9 @@ export async function GET() {
       image2: 'File (두 번째 사람의 이미지 파일)'
     },
     features: [
-      '두 이미지 자동 업로드 (Supabase Storage)',
+      'URL 모드: 기존 Storage URL 재사용 (재업로드 없음)',
+      'OpenAI Vision detail=low + 512px 리사이즈로 토큰 절감',
+      '파일 업로드 모드: Supabase Storage 저장 후 분석',
       '전반적인 궁합 점수 (0-100점)',
       '성격적 궁합 분석',
       '감정적 궁합 분석',
