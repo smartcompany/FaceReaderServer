@@ -16,6 +16,7 @@
     "heic-convert": "^2.1.0",
     "multer": "^2.0.2",
     "next": "15.5.7",
+    "nextjs-share-lib": "github:smartcompany/nextjs_share_lib#main",
     "openai": "^5.12.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

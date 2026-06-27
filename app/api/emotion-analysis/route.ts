@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import emotionPrompt from './emotion-analysis.txt';
-import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
+import { getLanguageFromHeaders, getLanguageSpecificPrompt } from '../_helpers';
+import { ai } from '../../../lib/ai-client';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
 
@@ -30,11 +30,6 @@ async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
     throw new Error('HEIC 파일 변환에 실패했습니다.');
   }
 }
-
-// OpenAI 클라이언트 초기화
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // 환경 변수 설정
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -106,8 +101,7 @@ export async function POST(request: NextRequest) {
     const prompt = await loadPrompt(language);
 
     // OpenAI API 호출
-    const response = await openai.chat.completions.create({
-      ...openAIConfig,
+    const response = await ai.createChatCompletion({
       messages: [
         {
           role: "user",

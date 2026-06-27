@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
-import { getLanguageFromHeaders, getLanguageSpecificPrompt, openAIConfig } from '../_helpers';
+import { getLanguageFromHeaders, getLanguageSpecificPrompt } from '../_helpers';
+import { ai } from '../../../lib/ai-client';
 import { shouldUseDummyData, loadDummyData } from '../../../utils/dummy-settings';
 import convert from 'heic-convert';
 import sharp from 'sharp';
@@ -64,11 +64,6 @@ async function convertHEICToJPEG(buffer: Buffer): Promise<Buffer> {
     throw new Error('HEIC 파일 변환에 실패했습니다.');
   }
 }
-
-// OpenAI 클라이언트 초기화
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // 환경 변수 설정
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -359,7 +354,7 @@ export async function POST(request: NextRequest) {
     hasOpenAiKey: Boolean(process.env.OPENAI_API_KEY),
     hasSupabaseUrl: Boolean(SUPABASE_URL),
     hasSupabaseKey: Boolean(SUPABASE_KEY),
-    openAiModel: openAIConfig.model,
+    chatPreset: 'long_output',
   });
 
   try {
@@ -473,17 +468,13 @@ export async function POST(request: NextRequest) {
     
     currentStep = 'OPENAI_REQUEST';
     logCompatibility(currentStep, 'OpenAI API 호출 시작', {
-      model: openAIConfig.model,
-      maxCompletionTokens: 12000,
-      reasoningEffort: 'minimal',
+      chatPreset: 'long_output',
       image1DataUrlLength: openAiImageUrl1.length,
       image2DataUrlLength: openAiImageUrl2.length,
     });
 
-    const response = await openai.chat.completions.create({
-      ...openAIConfig,
-      max_completion_tokens: 12000,
-      reasoning_effort: 'minimal',
+    const response = await ai.createChatCompletion({
+      preset: 'long_output',
       messages: [
         {
           role: "user",
