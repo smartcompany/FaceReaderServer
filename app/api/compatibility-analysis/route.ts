@@ -41,6 +41,13 @@ function getErrorDetails(error: unknown): string {
   return String(error);
 }
 
+function getAssistantRefusal(
+  message: { content?: string | null } | undefined,
+): string | null {
+  const refusal = (message as { refusal?: unknown } | undefined)?.refusal;
+  return typeof refusal === "string" ? refusal : null;
+}
+
 // HEIC 파일인지 확인하는 함수
 function isHEICBuffer(buffer: Buffer): boolean {
   // HEIC 파일은 'ftyp' 시그니처를 가지며, 그 뒤에 'heic' 또는 'mif1'이 옴
@@ -517,7 +524,7 @@ export async function POST(request: NextRequest) {
       finishReason: choice?.finish_reason,
       hasContent: Boolean(choice?.message?.content),
       contentLength: choice?.message?.content?.length ?? 0,
-      refusal: choice?.message?.refusal ?? null,
+      refusal: getAssistantRefusal(choice?.message),
       promptTokens: usage?.prompt_tokens,
       completionTokens: usage?.completion_tokens,
       reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
@@ -530,7 +537,7 @@ export async function POST(request: NextRequest) {
       logCompatibility('OPENAI_EMPTY', 'OpenAI 응답 본문 없음', {
         requestId,
         finishReason: choice?.finish_reason,
-        refusal: choice?.message?.refusal ?? null,
+        refusal: getAssistantRefusal(choice?.message),
         promptTokens: usage?.prompt_tokens,
         completionTokens: usage?.completion_tokens,
         reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
@@ -542,7 +549,7 @@ export async function POST(request: NextRequest) {
           details:
             choice?.finish_reason === 'length'
               ? '모델 출력 토큰 한도에 도달했습니다. reasoning 토큰이 출력을 모두 사용했을 수 있습니다.'
-              : choice?.message?.refusal ||
+              : getAssistantRefusal(choice?.message) ||
                 'OpenAI가 빈 응답을 반환했습니다.',
           step: 'OPENAI_EMPTY',
           requestId,
