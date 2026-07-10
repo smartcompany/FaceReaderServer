@@ -10,11 +10,11 @@
                 },
                 {
                     "key": "Access-Control-Allow-Methods",
-                    "value": "GET, OPTIONS"
+                    "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
                 },
                 {
                     "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type"
+                    "value": "Content-Type, X-Google-User-ID, X-Language"
                 }
             ]
         }
