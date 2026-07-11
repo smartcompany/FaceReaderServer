@@ -52,7 +52,7 @@ async function loadPrompt(language: string): Promise<string> {
     return getLanguageSpecificPrompt(emotionPrompt as unknown as string, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    const fallbackPrompt = '당신은 전문적인 감정 분석가입니다. 사진에서 감정 상태를 분석해주세요.';
+    const fallbackPrompt = '당신은 따뜻한 감정 피드백 상담사입니다. 사진의 표정·분위기에서 느껴지는 감정을 공감적으로 해석하고, 자기이해에 도움이 되는 조언을 JSON으로만 답하세요. 진단하지 마세요.';
     return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
 }

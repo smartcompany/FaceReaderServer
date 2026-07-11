@@ -340,13 +340,23 @@ async function prepareImageFromFile(
 }
 
 // 프롬프트 로드(로컬 import 사용)
-async function loadPrompt(language: string, _platform?: string): Promise<string> {
+async function loadPrompt(
+  language: string,
+  _platform?: string,
+  person1Name?: string,
+  person2Name?: string
+): Promise<string> {
   try {
-    return getLanguageSpecificPrompt(compatibilityPrompt as unknown as string, language);
+    const name1 = (person1Name ?? '').trim() || '첫 번째 분';
+    const name2 = (person2Name ?? '').trim() || '두 번째 분';
+    const prompt = (compatibilityPrompt as unknown as string)
+      .replaceAll('{{PERSON1_NAME}}', name1)
+      .replaceAll('{{PERSON2_NAME}}', name2);
+
+    return getLanguageSpecificPrompt(prompt, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    // 기본 프롬프트 반환
-    const fallbackPrompt = '당신은 전문적인 분석가입니다. 두 사람의 얼굴 사진을 분석하여 관계를 분석해주세요.';
+    const fallbackPrompt = '당신은 관상 매칭 분석가입니다. 두 얼굴 사진의 눈·표정·분위기 패턴을 대조해 궁합을 JSON으로만 답하세요. 실제 운명을 단정하지 말고, 근거 있는 관상 해석과 현실적 관계 조언을 주세요. 제공된 닉네임으로만 지칭하세요.';
     return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
 }
@@ -383,11 +393,19 @@ export async function POST(request: NextRequest) {
     const image1Url = formData.get('image1Url') as string | null;
     const image2Url = formData.get('image2Url') as string | null;
     const platform = formData.get('platform') as string | null;
+    const person1Name =
+      (formData.get('person1Name') as string | null) ||
+      (formData.get('userNickname') as string | null);
+    const person2Name =
+      (formData.get('person2Name') as string | null) ||
+      (formData.get('partnerName') as string | null);
 
     logCompatibility(currentStep, '요청 파싱 완료', {
       requestId,
       language,
       platform,
+      person1Name,
+      person2Name,
       mode:
         image1Url && image2Url
           ? 'url'
@@ -468,9 +486,11 @@ export async function POST(request: NextRequest) {
     }
 
     currentStep = 'LOAD_PROMPT';
-    const prompt = await loadPrompt(language, platform);
+    const prompt = await loadPrompt(language, platform ?? undefined, person1Name ?? undefined, person2Name ?? undefined);
     logCompatibility(currentStep, '프롬프트 로드 완료', {
       promptLength: prompt.length,
+      person1Name,
+      person2Name,
     });
     
     currentStep = 'OPENAI_REQUEST';

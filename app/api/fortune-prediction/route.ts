@@ -45,7 +45,7 @@ async function loadPrompt(language: string, platform: string): Promise<string> {
     return getLanguageSpecificPrompt(fortunePrompt as unknown as string, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    const fallbackPrompt = '당신은 전문 점성가입니다. 사진을 바탕으로 오늘의 운세를 분석해 주세요.';
+    const fallbackPrompt = '당신은 엔터테인먼트용 오늘의 운세 해석 전문가입니다. 사진 분위기를 바탕으로 재미있게 오늘의 운세를 작성하고 JSON으로만 답하세요. 실제 운명을 단정하지 마세요.';
     return getLanguageSpecificPrompt(fallbackPrompt, language);
   }
 }

@@ -42,7 +42,7 @@ async function loadPrompt(language: string): Promise<string> {
     return getLanguageSpecificPrompt(personalityPrompt as unknown as string, language);
   } catch (error) {
     console.error('프롬프트 파일 읽기 오류:', error);
-    const fallback = '당신은 이미지 기반 캐릭터 성격 분석가입니다. 외형적 분위기를 바탕으로 가상의 캐릭터 성격을 창작적으로 분석하고 JSON으로만 답하세요.';
+    const fallback = '당신은 엔터테인먼트용 인상·분위기 해석 전문가입니다. 사진 분위기를 바탕으로 재미있게 성격 인상을 해석하고 JSON으로만 답하세요. 실제 성격을 단정하지 마세요.';
     return getLanguageSpecificPrompt(fallback, language);
   }
 }
