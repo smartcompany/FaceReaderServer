@@ -42,10 +42,9 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // accepted(대화 허용됨)이면 재공유 차단
     const feedbackInProgress = (interaction: string | null | undefined) =>
-      interaction === 'interested' ||
-      interaction === 'chatRequest' ||
-      interaction === 'chatAccepted';
+      interaction === 'accepted';
 
     if (existingShare) {
       const isActiveForSender = existingShare.sender_delete !== true;
@@ -245,7 +244,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const {
       shareId,        // 궁합 결과 ID
-      interaction     // 상호작용 상태 (ENUM: interested, notInterested, chatRequest, chatDenied, chatAccepted)
+      interaction     // 상호작용 상태 (ENUM: accepted, declined, completed) + compatibility_share(알림용)
     } = body;
 
     // 필수 필드 검증
@@ -264,14 +263,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 허용된 ENUM 값 검증
+    // - compatibility_share: DB 미저장, 공유 직후 푸시용
+    // - accepted / declined / completed: 2단계 플로우
     const allowedInteractions = [
-      'compatibility_share',  // 궁합 공유
-      'interested', 
-      'notInterested', 
-      'chatRequest', 
-      'chatDenied', 
-      'chatAccepted',
-      'chatCompleted'
+      'compatibility_share',
+      'accepted',
+      'declined',
+      'completed',
     ];
     
     if (!allowedInteractions.includes(interaction)) {
