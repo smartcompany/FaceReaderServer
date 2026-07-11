@@ -6,10 +6,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY!
 );
 
+/**
+ * 보낸 사람(주인): hard delete
+ * 받은 사람: receiver_delete = true (목록에서 숨김)
+ */
 export async function POST(request: NextRequest) {
   try {
     const { shareId, deleteType } = await request.json();
-    
+
     if (!shareId || !deleteType) {
       return NextResponse.json(
         { error: 'shareId와 deleteType이 필요합니다.' },
@@ -24,14 +28,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 현재 레코드 조회
     const { data: currentRecord, error: fetchError } = await supabase
       .from('compatibility_shares')
-      .select('sender_delete, receiver_delete')
+      .select('id, sender_delete, receiver_delete, receiver_id')
       .eq('id', shareId)
       .single();
 
-    if (fetchError) {
+    if (fetchError || !currentRecord) {
       console.error('레코드 조회 오류:', fetchError);
       return NextResponse.json(
         { error: '레코드를 찾을 수 없습니다.' },
@@ -39,44 +42,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 삭제 필드 업데이트
-    const updateData: any = {};
+    // 보낸 사람(주인) 삭제 → DB에서 완전 삭제
     if (deleteType === 'sender') {
-      updateData.sender_delete = true;
-    } else {
-      updateData.receiver_delete = true;
-    }
-
-    const { error: updateError } = await supabase
-      .from('compatibility_shares')
-      .update(updateData)
-      .eq('id', shareId);
-
-    if (updateError) {
-      console.error('삭제 필드 업데이트 오류:', updateError);
-      return NextResponse.json(
-        { error: '삭제 처리 중 오류가 발생했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    // 업데이트된 레코드 조회
-    const { data: updatedRecord, error: refetchError } = await supabase
-      .from('compatibility_shares')
-      .select('sender_delete, receiver_delete, receiver_id')
-      .eq('id', shareId)
-      .single();
-
-    if (refetchError) {
-      console.error('업데이트된 레코드 조회 오류:', refetchError);
-      return NextResponse.json(
-        { error: '업데이트된 레코드를 조회할 수 없습니다.' },
-        { status: 500 }
-      );
-    }
-
-    // 두 필드가 모두 true이면 레코드 삭제
-    if (updatedRecord.sender_delete && updatedRecord.receiver_delete) {
       const { error: deleteError } = await supabase
         .from('compatibility_shares')
         .delete()
@@ -92,20 +59,37 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: '레코드가 완전히 삭제되었습니다.',
-        action: 'deleted'
+        message: '궁합 결과가 삭제되었습니다.',
+        action: 'deleted',
+        receiver_id: currentRecord.receiver_id,
       });
+    }
+
+    // 받은 사람 → 숨김 (receiver_delete = true)
+    const { error: updateError } = await supabase
+      .from('compatibility_shares')
+      .update({
+        receiver_delete: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', shareId);
+
+    if (updateError) {
+      console.error('숨김 처리 오류:', updateError);
+      return NextResponse.json(
+        { error: '숨김 처리 중 오류가 발생했습니다.' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: `${deleteType === 'sender' ? '보낸 사람' : '받은 사람'} 삭제 처리 완료`,
-      receiver_id: updatedRecord.receiver_id,
-      action: 'updated'
+      message: '궁합 결과를 목록에서 숨겼습니다.',
+      receiver_id: currentRecord.receiver_id,
+      action: 'hidden',
     });
-
   } catch (error) {
-    console.error('삭제 API 오류:', error);
+    console.error('삭제/숨김 API 오류:', error);
     return NextResponse.json(
       { error: '서버 오류가 발생했습니다.' },
       { status: 500 }
