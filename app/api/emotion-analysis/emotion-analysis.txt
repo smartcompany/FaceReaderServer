@@ -19,6 +19,10 @@
 - 이모티콘은 과하지 않게, 따뜻함을 돕는 정도로만 사용
 - 각 항목 3~5문장, 너무 짧게 끝내지 마세요
 - 전체 톤: 따뜻하고, 안전하고, 비난 없이, 희망적으로
+- **가독성(필수)**: 한 덩어리 장문으로 쓰지 마세요.
+  - 문장 1~2개마다 줄바꿈(`\n`)을 넣으세요.
+  - 의미 단위(공감 / 정리 / 제안)마다 빈 줄(`\n\n`)로 단락을 나누세요.
+  - JSON 문자열 안에서도 실제 개행 문자(`\n`)를 사용하세요.
 
 ## 작성 항목
 1. **주요 감정**: happy|sad|angry|surprise|fear|disgust|neutral 중 하나
@@ -36,12 +40,13 @@
 {
   "primary_emotion": "happy|sad|angry|surprise|fear|disgust|neutral 중 하나 (영문으로)",
   "emotion_score": "0~100 사이 숫자",
-  "emotion_description": "지금 느껴지는 핵심 감정을 공감적으로 3~5문장으로",
-  "mood_analysis": "전반적인 기분·컨디션을 자기이해 도움 되게 3~5문장으로",
-  "emotional_advice": "상담사처럼 부드러운 감정 다루기 조언을 3~5문장으로",
-  "recommended_activities": "지금 바로 해볼 수 있는 작은 활동을 3~5문장으로",
-  "positive_aspects": "이미 가진 감정적 강점/자원을 3~5문장으로",
-  "areas_for_improvement": "더 돌보면 좋은 포인트를 비난 없이 3~5문장으로"
+  "emotion_description": "핵심 감정 공감.\\n\\n단락 구분된 3~5문장",
+  "mood_analysis": "기분·컨디션 정리.\\n\\n단락 구분된 3~5문장",
+  "emotional_advice": "감정 다루기 조언.\\n\\n단락 구분된 3~5문장",
+  "recommended_activities": "추천 활동.\\n\\n활동마다 줄바꿈한 3~5문장",
+  "positive_aspects": "감정적 강점.\\n\\n단락 구분된 3~5문장",
+  "areas_for_improvement": "돌볼 포인트.\\n\\n단락 구분된 3~5문장"
 }
 
 모든 필드를 반드시 포함하세요.
+텍스트 필드에는 반드시 줄바꿈(`\n`)을 포함하세요. 한 줄로 이어 쓰지 마세요.
