@@ -25,35 +25,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 중복 공유 체크
+    // 중복 공유 체크 (보낸 사람이 삭제하지 않은 활성 공유만 중복으로 간주)
     console.log('🔍 [POST] 중복 체크 시작');
     console.log('🔍 [POST] senderId:', senderId);
     console.log('🔍 [POST] receiverId:', receiverId);
 
-    const { data: existingShare } = await supabase
+    const { data: activeShare } = await supabase
       .from('compatibility_shares')
       .select('id')
       .eq('sender_id', senderId)
       .eq('receiver_id', receiverId)
-      .limit(1)  // ← 첫 번째 결과만 가져옴
-      .single();  // ← 이제 안전함
+      .eq('sender_delete', false)
+      .limit(1)
+      .maybeSingle();
 
-    console.log('🔍 [POST] 중복 체크 결과 - existingShare:', existingShare);
-    console.log('🔍 [POST] existingShare 타입:', typeof existingShare);
-    console.log('🔍 [POST] existingShare 값:', existingShare);
-
-    if (existingShare) {
-      console.log('🔍 [POST] 중복 발견! 기존 공유 ID:', existingShare.id);
+    if (activeShare) {
+      console.log('🔍 [POST] 활성 중복 발견! 기존 공유 ID:', activeShare.id);
       return NextResponse.json(
-        { 
+        {
           error: 'DUPLICATE_SHARE',
-          message: '이미 공유한 사용자입니다.'
+          message: '이미 공유한 사용자입니다.',
         },
-        { status: 409 }  // Conflict
+        { status: 409 }
       );
-    } else {
-      console.log('🔍 [POST] 중복 없음, 새로 공유 진행');
     }
+
+    // 보낸 사람이 soft-delete한 기록이 있으면 새 insert 대신 복구/갱신
+    const { data: deletedShare } = await supabase
+      .from('compatibility_shares')
+      .select('id')
+      .eq('sender_id', senderId)
+      .eq('receiver_id', receiverId)
+      .eq('sender_delete', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (deletedShare) {
+      console.log('🔍 [POST] soft-delete 공유 복구:', deletedShare.id);
+      const { data: shareData, error: reviveError } = await supabase
+        .from('compatibility_shares')
+        .update({
+          compatibility_result: compatibility,
+          sender_delete: false,
+          receiver_delete: false,
+          interaction: null,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        })
+        .eq('id', deletedShare.id)
+        .select()
+        .single();
+
+      if (reviveError) {
+        console.error('궁합 결과 복구 오류:', reviveError);
+        return NextResponse.json(
+          { error: '궁합 결과 저장 중 오류가 발생했습니다.' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        shareId: shareData.id,
+        message: '궁합 결과가 성공적으로 공유되었습니다.',
+        shareUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://face-reader-app.vercel.app'}/compatibility-share`,
+      });
+    }
+
+    console.log('🔍 [POST] 중복 없음, 새로 공유 진행');
 
     // 궁합 결과를 Supabase에 저장
     const { data: shareData, error: shareError } = await supabase
