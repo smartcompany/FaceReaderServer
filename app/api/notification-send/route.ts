@@ -67,8 +67,8 @@ export async function POST(req: Request) {
         body = '궁합 분석 결과를 확인해보세요!';
         break;
       case 'interested':
-        title = `${senderName}님이 보낸 궁합에 흥미를 보였습니다`;
-        body = '궁합 결과를 확인해보세요!';
+        title = `${senderName}이 관심있음으로 응답 했습니다.`;
+        body = message || '공유된 궁합 결과를 확인해보세요!';
         break;
       case 'chatRequest':
         title = `${senderName}님이 대화를 요청했습니다`;
