@@ -111,10 +111,11 @@ export async function GET(request: NextRequest) {
   }
 
   // 사용자 ID나 보낸 사람 ID로 궁합 결과 목록 조회 (삭제된 항목 제외)
+  // 최근 상호작용이 위로 오도록 updated_at 기준 정렬
   let query = supabase
     .from('compatibility_shares')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   if (receiverId) {
     // 받은 궁합: receiver_delete가 false인 항목만 조회
