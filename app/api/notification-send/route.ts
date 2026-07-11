@@ -5,10 +5,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Firebase Admin SDK 설정 (환경변수에서 가져오기)
 const admin = require('firebase-admin');
 
-// Firebase Admin 초기화 (한 번만 실행)
 if (!admin.apps.length) {
   try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}');
@@ -21,7 +19,6 @@ if (!admin.apps.length) {
   }
 }
 
-/** FCM data 값은 모두 string 이어야 함 */
 function asDataString(value: unknown): string {
   if (value === undefined || value === null) return '';
   return String(value);
@@ -29,8 +26,8 @@ function asDataString(value: unknown): string {
 
 /**
  * 푸시 알림 API
- * - 서버는 type / senderName 등 메타데이터만 data로 전달
- * - title / body 문구는 클라이언트에서 사용자 로케일에 맞게 생성
+ * - data: type / senderName 등 (클라이언트가 로케일별 문구 재생성)
+ * - notification: title/body (백그라운드 OS 표시용, 클라이언트가 전달)
  */
 export async function POST(req: Request) {
   try {
@@ -42,6 +39,8 @@ export async function POST(req: Request) {
       chatRoomId,
       senderName,
       compatibilityShareId,
+      title: titleFromClient,
+      body: bodyFromClient,
     } = await req.json();
 
     if (!receiverId || !senderId || !type) {
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // 채팅 메시지는 본문(message)이 필요. 그 외 타입은 클라이언트가 문구를 만듦.
     if (type === 'chat_message' && (message === undefined || message === null || message === '')) {
       return NextResponse.json(
         { error: 'chat_message 타입은 message가 필요합니다' },
@@ -67,6 +65,8 @@ export async function POST(req: Request) {
       chatRoomId,
       senderName,
       compatibilityShareId,
+      titleFromClient,
+      bodyFromClient,
     });
 
     const { data: tokens, error: tokenError } = await supabase
@@ -84,6 +84,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '수신자의 FCM 토큰이 없습니다' }, { status: 404 });
     }
 
+    const name = asDataString(senderName) || 'User';
+    const fallback = fallbackCopy(type, name, asDataString(message));
+    const title = asDataString(titleFromClient) || fallback.title;
+    const body = asDataString(bodyFromClient) || fallback.body;
+
     const dataPayload = {
       senderId: asDataString(senderId),
       receiverId: asDataString(receiverId),
@@ -92,22 +97,37 @@ export async function POST(req: Request) {
       chatRoomId: asDataString(chatRoomId),
       senderName: asDataString(senderName),
       compatibilityShareId: asDataString(compatibilityShareId),
+      title,
+      body,
     };
 
-    // data-only: OS가 서버 title/body를 표시하지 않음 → 클라이언트가 로컬라이즈 후 표시
-    const createDataOnlyPayload = (token: string) => ({
+    const createPayload = (token: string) => ({
       token,
+      // 백그라운드에서도 OS 알림이 보이도록 notification 포함
+      notification: {
+        title,
+        body,
+      },
       data: dataPayload,
       android: {
         priority: 'high' as const,
+        notification: {
+          channelId: 'face_reader_push',
+          sound: 'default',
+        },
       },
       apns: {
         headers: {
           'apns-priority': '10',
-          'apns-push-type': 'background',
+          'apns-push-type': 'alert',
         },
         payload: {
           aps: {
+            alert: {
+              title,
+              body,
+            },
+            sound: 'default',
             'content-available': 1,
           },
         },
@@ -116,8 +136,7 @@ export async function POST(req: Request) {
 
     const sendPromises = tokens.map(async (tokenData) => {
       try {
-        const payload = createDataOnlyPayload(tokenData.token);
-        const result = await admin.messaging().send(payload);
+        const result = await admin.messaging().send(createPayload(tokenData.token));
         console.log('✅ 푸시 알림 전송 성공:', result);
         return { success: true, token: tokenData.token };
       } catch (error: any) {
@@ -170,5 +189,41 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('❌ 푸시 알림 API 오류:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+/** 클라이언트가 title/body를 안 보냈을 때 쓰는 폴백 (영문) */
+function fallbackCopy(type: string, senderName: string, message: string) {
+  switch (type) {
+    case 'chat_message':
+      return {
+        title: senderName,
+        body: message || 'New message',
+      };
+    case 'chat_room_created':
+      return {
+        title: `${senderName} created a chat`,
+        body: 'Join the conversation',
+      };
+    case 'compatibility_share':
+      return {
+        title: `${senderName} shared compatibility`,
+        body: 'Check the result and allow the chat',
+      };
+    case 'accepted':
+      return {
+        title: `${senderName} allowed the chat`,
+        body: 'You can start chatting now',
+      };
+    case 'declined':
+      return {
+        title: `${senderName} declined the chat`,
+        body: 'You can try again later',
+      };
+    default:
+      return {
+        title: `Notification from ${senderName}`,
+        body: message || 'New notification',
+      };
   }
 }
