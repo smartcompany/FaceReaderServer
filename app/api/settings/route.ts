@@ -1,27 +1,27 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import settings from './settings.json';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
-
-const STORAGE_BUCKET = 'face-reader';
-const FILE_PATH = "settings.json";
-
-const settingsUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${FILE_PATH}`;
-
+/**
+ * 광고/업데이트 설정.
+ *
+ * 하위 호환:
+ * - 구앱: `ads` (+ `ads.ref`) 만 사용
+ * - 신앱(AdService/ForceUpdate): `ios_ads` / `android_ads` / `ref` / `min_version` / `down_load_url`
+ * 한 JSON에 둘 다 두어 User-Agent 분기 없이 공존합니다.
+ */
 export async function GET() {
   try {
-    console.log(`[settings] Fetching: ${settingsUrl}`);
-    const res = await fetch(settingsUrl);
-    if (!res.ok) {
-      console.error(`[settings] Fetch failed: ${res.status} ${res.statusText}`);
-      return NextResponse.json({ error: 'Failed to fetch settings.json' }, { status: 500 });
-    }
-    const json = await res.json();
-    console.log(`[settings] Success:`, json);
-    return NextResponse.json(json, { status: 200 });
-  } catch (e: any) {
-    console.error(`[settings] Exception:`, e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(settings, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
+  } catch (error) {
+    console.error('[settings] Failed to load settings:', error);
+    return NextResponse.json(
+      { error: 'Failed to load settings' },
+      { status: 500 },
+    );
   }
 }

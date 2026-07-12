@@ -1,0 +1,38 @@
+{
+  "ads": {
+    "ios": "ca-app-pub-5520596727761259/2503600098",
+    "android": "ca-app-pub-5520596727761259/3465595849",
+    "androidType": "android_Reward",
+    "ref": {
+      "iosTest": "ca-app-pub-3940256099942544/6978759866",
+      "androidTest": "ca-app-pub-3940256099942544/5354046379",
+      "ios": "ca-app-pub-5520596727761259/2503600098",
+      "android_RewardInitial": "ca-app-pub-5520596727761259/9325983140",
+      "android_Reward": "ca-app-pub-5520596727761259/3465595849"
+    }
+  },
+  "ios_ads": [{ "initial_ad": 5 }, { "rewarded_ad": 1 }],
+  "android_ads": [{ "initial_ad": 4 }, { "rewarded_ad": 1 }],
+  "ref": {
+    "ios": {
+      "rewarded_test": "ca-app-pub-3940256099942544/1712485313",
+      "initial_ad": "ca-app-pub-5520596727761259/2503600098",
+      "rewarded_ad": "ca-app-pub-5520596727761259/2503600098"
+    },
+    "android": {
+      "rewarded_test": "ca-app-pub-3940256099942544/5224354917",
+      "initial_ad": "ca-app-pub-5520596727761259/5567172936",
+      "rewarded_ad": "ca-app-pub-5520596727761259/3465595849"
+    }
+  },
+  "down_load_url": "https://play.google.com/store/apps/details?id=com.smartcompany.facereader",
+  "min_version": {
+    "ios": "1.0.4",
+    "android": 41,
+    "force_update": {
+      "ios": false,
+      "android": false
+    },
+    "update_message": ""
+  }
+}
