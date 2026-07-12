@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 중복 공유 체크
-    // - 보낸 사람 삭제는 hard delete이므로 행이 없으면 재공유 가능
-    // - 행이 남아 있고(상대가 숨김만 한 경우 포함) 피드백 진행 중이면 차단
-    // - 레거시 sender_delete soft-delete + 피드백 종료면 복구 후 재공유
+    // - hard delete 후 행이 없으면 재공유 가능
+    // - soft-delete / completed / declined 이면 기존 행 복구 후 재공유
+    // - accepted(대화 중)만 재공유 차단
     console.log('🔍 [POST] 중복 체크 시작');
     console.log('🔍 [POST] senderId:', senderId);
     console.log('🔍 [POST] receiverId:', receiverId);
@@ -42,34 +42,47 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    // accepted(대화 허용됨)이면 재공유 차단
-    const feedbackInProgress = (interaction: string | null | undefined) =>
-      interaction === 'accepted';
+    const isTerminalInteraction = (interaction: string | null | undefined) =>
+      interaction === 'completed' || interaction === 'declined';
 
     if (existingShare) {
-      const isActiveForSender = existingShare.sender_delete !== true;
-      const isFeedbackOngoing = feedbackInProgress(existingShare.interaction);
+      const senderDeleted = existingShare.sender_delete === true;
+      const interaction = existingShare.interaction as string | null;
+      const feedbackOngoing = interaction === 'accepted' && !senderDeleted;
 
-      // 보낸 목록에 남아 있거나, 상대와 피드백이 진행 중이면 재공유 불가
-      if (isActiveForSender || isFeedbackOngoing) {
-        console.log('🔍 [POST] 재공유 차단:', {
-          id: existingShare.id,
-          isActiveForSender,
-          interaction: existingShare.interaction,
-        });
+      if (feedbackOngoing) {
+        console.log('🔍 [POST] 재공유 차단(대화 진행 중):', existingShare.id);
         return NextResponse.json(
           {
-            error: isFeedbackOngoing ? 'FEEDBACK_IN_PROGRESS' : 'DUPLICATE_SHARE',
-            message: isFeedbackOngoing
-              ? '상대와 궁합 피드백이 진행 중입니다. 완료되거나 정리된 뒤에 다시 공유할 수 있습니다.'
-              : '이미 공유한 사용자입니다.',
+            error: 'FEEDBACK_IN_PROGRESS',
+            message:
+              '상대와 궁합 피드백이 진행 중입니다. 완료되거나 정리된 뒤에 다시 공유할 수 있습니다.',
           },
           { status: 409 }
         );
       }
 
-      // 레거시 soft-delete 복구 (신규 보낸 삭제는 hard delete라 여기 거의 안 탐)
-      console.log('🔍 [POST] soft-delete 공유 복구:', existingShare.id);
+      // 보낸 사람이 목록에서 지웠거나, 대화가 끝난 상태면 기존 행을 갱신해 재공유
+      const canReuse =
+        senderDeleted ||
+        isTerminalInteraction(interaction) ||
+        interaction == null;
+
+      if (!canReuse) {
+        console.log('🔍 [POST] 재공유 차단(활성 공유):', {
+          id: existingShare.id,
+          interaction,
+        });
+        return NextResponse.json(
+          {
+            error: 'DUPLICATE_SHARE',
+            message: '이미 공유한 사용자입니다.',
+          },
+          { status: 409 }
+        );
+      }
+
+      console.log('🔍 [POST] 기존 공유 복구/갱신:', existingShare.id);
       const { data: shareData, error: reviveError } = await supabase
         .from('compatibility_shares')
         .update({

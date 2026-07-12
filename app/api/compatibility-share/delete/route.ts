@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 보낸 사람(주인) 삭제 → DB에서 완전 삭제
+    // 보낸 사람(주인) 삭제 → DB에서 완전 삭제 (실패 시 soft-delete 폴백)
     if (deleteType === 'sender') {
       const { error: deleteError } = await supabase
         .from('compatibility_shares')
@@ -50,11 +50,31 @@ export async function POST(request: NextRequest) {
         .eq('id', shareId);
 
       if (deleteError) {
-        console.error('레코드 삭제 오류:', deleteError);
-        return NextResponse.json(
-          { error: '레코드 삭제 중 오류가 발생했습니다.' },
-          { status: 500 }
-        );
+        console.error('레코드 삭제 오류, soft-delete 폴백:', deleteError);
+        const { error: softError } = await supabase
+          .from('compatibility_shares')
+          .update({
+            sender_delete: true,
+            receiver_delete: true,
+            interaction: 'completed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', shareId);
+
+        if (softError) {
+          console.error('soft-delete 폴백 실패:', softError);
+          return NextResponse.json(
+            { error: '레코드 삭제 중 오류가 발생했습니다.' },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: '궁합 결과가 삭제되었습니다.',
+          action: 'deleted',
+          receiver_id: currentRecord.receiver_id,
+        });
       }
 
       return NextResponse.json({
