@@ -36,6 +36,9 @@
 
 ## 응답 형식
 반드시 다음 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요.
+텍스트 필드(value)의 언어는 상단/하단의 **출력 언어 지시**를 따르세요.
+(프롬프트 본문이 한국어여도, 지시된 언어로 작성하세요.
+ primary_emotion 값만 영문 고정: happy|sad|angry|surprise|fear|disgust|neutral)
 
 {
   "primary_emotion": "happy|sad|angry|surprise|fear|disgust|neutral 중 하나 (영문으로)",

@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
     
     // OpenAI API 호출
     const response = await ai.createChatCompletion({
+      preset: 'long_output',
       messages: [
         {
           role: "user",
@@ -136,7 +137,8 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: publicUrl
+                url: publicUrl,
+                detail: 'low',
               }
             }
           ]
@@ -150,6 +152,10 @@ export async function POST(request: NextRequest) {
     const fortuneResult = response.choices[0]?.message?.content;
     
     if (!fortuneResult) {
+      console.error('❌ [Fortune] 빈 응답', {
+        finish_reason: response.choices[0]?.finish_reason,
+        usage: response.usage,
+      });
       return NextResponse.json(
         { error: 'AI 오늘의 운세 예측 결과를 생성할 수 없습니다.' },
         { status: 500 }

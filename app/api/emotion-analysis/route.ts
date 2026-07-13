@@ -100,8 +100,13 @@ export async function POST(request: NextRequest) {
     // 프롬프트 로드
     const prompt = await loadPrompt(language);
 
-    // OpenAI API 호출
+    // gpt-5-mini default(2000)는 reasoning에 토큰을 다 써 본문이 비는 경우가 있음
+    // → 궁합과 동일하게 long_output 사용
+    const mimeType = contentType?.startsWith('image/')
+      ? contentType
+      : 'image/jpeg';
     const response = await ai.createChatCompletion({
+      preset: 'long_output',
       messages: [
         {
           role: "user",
@@ -113,7 +118,8 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`
+                url: `data:${mimeType};base64,${base64Image}`,
+                detail: 'low',
               }
             }
           ]
@@ -121,10 +127,21 @@ export async function POST(request: NextRequest) {
       ]
     });
 
-    const result = response.choices[0]?.message?.content;
-    
-    if (!result) {
-      throw new Error('OpenAI 응답이 비어있습니다.');
+    const choice = response.choices[0];
+    const result =
+      typeof choice?.message?.content === 'string'
+        ? choice.message.content
+        : null;
+
+    if (!result?.trim()) {
+      console.error('❌ [Emotion] 빈 응답', {
+        finish_reason: choice?.finish_reason,
+        usage: response.usage,
+        messageKeys: choice?.message ? Object.keys(choice.message) : [],
+      });
+      throw new Error(
+        `OpenAI 응답이 비어있습니다. (finish_reason=${choice?.finish_reason ?? 'unknown'})`
+      );
     }
 
     console.log('✅ [Emotion] OpenAI 응답 수신');
@@ -159,8 +176,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ [Emotion] 감정 분석 실패:', error);
+    const message =
+      error instanceof Error ? error.message : '감정 분석 중 오류가 발생했습니다.';
     return NextResponse.json(
-      { success: false, error: '감정 분석 중 오류가 발생했습니다.' },
+      { success: false, error: message },
       { status: 500 }
     );
   }
