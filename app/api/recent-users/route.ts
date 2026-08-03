@@ -74,6 +74,7 @@ export async function GET(req: Request) {
       location: user.user_data?.region,
       photoUrl: user.user_data?.photoUrl,
       gender: user.user_data?.gender,
+      bio: user.user_data?.bio ?? null,
       lastUpdated: user.updated_at,
     }));
 

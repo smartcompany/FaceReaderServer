@@ -50,6 +50,8 @@ export async function POST(req: Request) {
     const gender = formData.get('gender') as string;
     const age = formData.get('age') as string;
     const region = formData.get('region') as string;
+    const bioRaw = formData.get('bio') as string | null;
+    const bio = bioRaw != null ? bioRaw.trim() : null;
     
     console.log('추출된 필드들:');
     console.log('  userId:', userId);
@@ -58,6 +60,7 @@ export async function POST(req: Request) {
     console.log('  gender:', gender);
     console.log('  age:', age);
     console.log('  region:', region);
+    console.log('  bio:', bio ? `${bio.length} chars` : '없음');
     
     // 이미지 파일 처리
     const photoFile = formData.get('photo') as File | null;
@@ -130,20 +133,36 @@ export async function POST(req: Request) {
       }
     }
 
+    // 기존 user_data와 병합 (bio 등 추가 필드 보존)
+    const { data: existingRow } = await supabase
+      .from('face_reader_user_data')
+      .select('user_data')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const existingUserData =
+      existingRow?.user_data && typeof existingRow.user_data === 'object'
+        ? existingRow.user_data
+        : {};
+
+    const nextUserData = {
+      ...existingUserData,
+      email: email,
+      nickname: nickname,
+      gender: gender,
+      age: age,
+      region: region,
+      photoUrl: photoUrl,
+      bio: bio && bio.length > 0 ? bio : null,
+    };
+
     // Supabase에 사용자 프로필 데이터 저장
     const { data, error } = await supabase
       .from('face_reader_user_data')
       .upsert(
         {
           user_id: userId,
-          user_data: {
-            email: email,
-            nickname: nickname,
-            gender: gender,
-            age: age,
-            region: region,
-            photoUrl: photoUrl
-          },
+          user_data: nextUserData,
           updated_at: new Date().toISOString()
         },
         { onConflict: 'user_id' }
@@ -182,6 +201,7 @@ export async function POST(req: Request) {
         age: age,
         region: region,
         photoUrl: photoUrl,
+        bio: nextUserData.bio,
         createdAt: data[0].user_data.createdAt,
         updatedAt: data[0].user_data.updatedAt,
       }
@@ -278,6 +298,7 @@ export async function GET(req: Request) {
         age: data.user_data.age,
         region: data.user_data.region,
         photoUrl: data.user_data.photoUrl,
+        bio: data.user_data.bio ?? null,
         createdAt: data.user_data.createdAt,
         updatedAt: data.user_data.updatedAt,
       }
